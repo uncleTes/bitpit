@@ -4,6 +4,7 @@
 
 if (DEFINED MODULE_SOURCES)
 	unset(${MODULE_SOURCES})
+	unset(${MODULE_DEFINITIONS})
 endif ()
 
 # Common
@@ -16,6 +17,7 @@ foreach(MODULE_NAME IN LISTS BITPIT_MODULE_LIST)
 		string(TOUPPER ${MODULE_NAME} UPPERCASE_MODULE_NAME)
 		add_subdirectory(${MODULE_NAME})
 		set(MODULE_SOURCES ${MODULE_SOURCES} $<TARGET_OBJECTS:${UPPERCASE_MODULE_NAME}_TARGET_OBJECT>)
+		set(MODULE_DEFINITIONS ${MODULE_DEFINITIONS} ${${UPPERCASE_MODULE_NAME}_DEFINITIONS})
 	endif ()
 endforeach()
 
@@ -46,6 +48,9 @@ set_target_properties(${BITPIT_LIBRARY} PROPERTIES VERSION "${BITPIT_VERSION}"
                                                  SOVERSION  "${BITPIT_MAJOR_VERSION}")
 
 install(TARGETS ${BITPIT_LIBRARY} DESTINATION lib)
+
+# Definitions
+set(BITPIT_DEFINITIONS ${MODULE_DEFINITIONS} CACHE INTERNAL "Pre-processor definitions needed by the Base Library" FORCE)
 
 # Targets
 add_custom_target(library DEPENDS ${BASE_LIBRARY})
