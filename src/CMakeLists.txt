@@ -2,8 +2,8 @@
 # Subdirectories
 #------------------------------------------------------------------------------------#
 
-if (DEFINED BITPIT_SOURCES)
-	unset(${BITPIT_SOURCES})
+if (DEFINED MODULE_SOURCES)
+	unset(${MODULE_SOURCES})
 endif ()
 
 # Common
@@ -15,7 +15,7 @@ foreach(MODULE_NAME IN LISTS BITPIT_MODULE_LIST)
 	if (MODULE_ENABLED)
 		string(TOUPPER ${MODULE_NAME} UPPERCASE_MODULE_NAME)
 		add_subdirectory(${MODULE_NAME})
-		set(BITPIT_SOURCES ${BITPIT_SOURCES} $<TARGET_OBJECTS:${UPPERCASE_MODULE_NAME}_TARGET_OBJECT>)
+		set(MODULE_SOURCES ${MODULE_SOURCES} $<TARGET_OBJECTS:${UPPERCASE_MODULE_NAME}_TARGET_OBJECT>)
 	endif ()
 endforeach()
 
@@ -33,7 +33,7 @@ endif()
 # Library
 set(BITPIT_LIBRARY ${CMAKE_PROJECT_NAME} CACHE INTERNAL "BitPit Base Library" FORCE)
 
-add_library(${BITPIT_LIBRARY} ${LIBRARY_TYPE} ${BITPIT_SOURCES})
+add_library(${BITPIT_LIBRARY} ${LIBRARY_TYPE} ${MODULE_SOURCES})
 
 if (ENABLE_MPI)
 	set_target_properties(${BITPIT_LIBRARY} PROPERTIES DEBUG_POSTFIX "_MPI_D")
