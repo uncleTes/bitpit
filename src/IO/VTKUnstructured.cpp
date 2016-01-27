@@ -125,12 +125,12 @@ uint64_t VTKUnstructuredGrid::calcSizeConnectivity( ){
 
         if( HeaderType== "UInt32") {
             absorb_binary( str, nbytes32 ) ;
-            nconn = nbytes32 /VTKUtils::sizeOfType( geometry[3].getType() ) ;
+            nconn = nbytes32 /VTKTypes::sizeOfType( geometry[3].getType() ) ;
         }
 
         if( HeaderType== "UInt64") {
             absorb_binary( str, nbytes64 ) ;
-            nconn = nbytes64 /VTKUtils::sizeOfType( geometry[3].getType() ) ;
+            nconn = nbytes64 /VTKTypes::sizeOfType( geometry[3].getType() ) ;
         };
     };
 
