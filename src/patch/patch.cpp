@@ -1033,6 +1033,54 @@ std::array<double, 3> Patch::evalElementCentroid(const Element &element)
 }
 
 /*!
+ *  Translates the patch.
+ *
+ *  @param[in] translation is the translation vector
+ */
+void Patch::translate(std::array<double, 3> translation)
+{
+	translate(translation[0], translation[1], translation[2]);
+}
+
+/*!
+ *  Translates the patch.
+ *
+ *  @param[in] sx translation along x direction
+ *  @param[in] sy translation along y direction
+ *  @param[in] sy translation along z direction
+ */
+void Patch::translate(double sx, double sy, double sz)
+{
+	for (auto &vertex : m_vertices) {
+		vertex.translate(sx, sy, sz);
+	}
+}
+
+/*!
+ *  Scales the patch.
+ *
+ *  @param[in] scaling is the scaling factor vector
+ */
+void Patch::scale(std::array<double, 3> scaling)
+{
+	scale(scaling[0], scaling[1], scaling[2]);
+}
+
+/*!
+ *  Scales the patch.
+ *
+ *  @param[in] sx scaling factor along x direction
+ *  @param[in] sy scaling factor along y direction
+ *  @param[in] sy scaling factor along z direction
+ */
+void Patch::scale(double sx, double sy, double sz)
+{
+	for (auto &vertex : m_vertices) {
+		vertex.scale(sx, sy, sz);
+	}
+}
+
+/*!
  *  Interface method for obtaining field meta Data
  *
  *  @param[in] name is the name of the field to be written

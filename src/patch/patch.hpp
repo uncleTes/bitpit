@@ -100,6 +100,11 @@ public:
 	void sort();
 	void squeeze();
 
+	void translate(std::array<double, 3> translation);
+	void translate(double sx, double sy, double sz);
+	void scale(std::array<double, 3> scaling);
+	void scale(double sx, double sy, double sz);
+
 	void writeMesh();
 	void writeMesh(std::string name);
 	void writeField(std::string name, bitpit::VTKLocation location, const std::vector<double> &values);
