@@ -69,6 +69,11 @@ public:
 	void setCoords(std::array<double, 3> &coords);
 	const std::array<double, 3> & getCoords() const;
 
+	void translate(std::array<double, 3> translation);
+	void translate(double sx, double sy, double sz);
+	void scale(std::array<double, 3> scaling);
+	void scale(double sx, double sy, double sz);
+
 	static const long NULL_VERTEX_ID;
 
 private:
