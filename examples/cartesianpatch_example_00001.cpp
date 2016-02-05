@@ -50,11 +50,11 @@ int main(int argc, char *argv[]) {
 	MPI::Init(argc,argv);
 #endif
 
-	std::array<double, 3> origin = {0., 0., 0.};
-	double length = 20;
-	double dh = 0.5;
+	std::array<double, 3> bb0 = {0., 0., 0.};
+	std::array<double, 3> bb1 = {10., 20., 30.};
+	std::array<int, 3> nc = {30, 20, 10};
 
-	Patch *patch_2D = new CartesianPatch(0, 2, origin, length, dh);
+	Patch *patch_2D = new CartesianPatch(0, 2, bb0, bb1, nc);
 	patch_2D->setName("cartesian_2D_patch");
 	patch_2D->update();
 	patch_2D->writeMesh();

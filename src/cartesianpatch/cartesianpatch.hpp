@@ -28,6 +28,7 @@
 #include <cstddef>
 #include <memory>
 #include <vector>
+#include <array>
 
 #include "bitpit_patch.hpp"
 
@@ -36,8 +37,7 @@ namespace bitpit {
 class CartesianPatch : public Patch {
 
 public:
-	CartesianPatch(const int &id, const int &dimension, std::array<double, 3> origin,
-			   double length, double dh);
+	CartesianPatch(const int &id, const int &dimension, std::array<double, 3> minBB, std::array<double, 3> maxBB, std::array<int,3> nc ); 
 
 	~CartesianPatch();
 
@@ -56,24 +56,18 @@ protected:
 private:
 	static const int SPACE_MAX_DIM;
 
-	std::vector<double> m_cellSize;
-	std::vector<double> m_minCoord;
+	std::array<double,3> m_cellSize;
+	std::array<double,3> m_minCoord;
+	std::array<double,3> m_maxCoord;
 
-	std::vector<double> m_x;
-	std::vector<double> m_y;
-	std::vector<double> m_z;
+	std::array<int,3> m_nVertices1D;
+	std::array<std::vector<double>,3> m_vertexCoord ;
 
-	std::vector<int> m_nCells1D;
-	std::vector<int> m_nVertices1D;
-	std::vector<int> m_x_nInterfaces1D;
-	std::vector<int> m_y_nInterfaces1D;
-	std::vector<int> m_z_nInterfaces1D;
+	std::array<int,3> m_nCells1D;
+	std::array<std::vector<double>,3> m_cellCoord ;
+	double m_cellVolume;
 
-	double m_cell_volume;
-	double m_x_interface_area;
-	double m_y_interface_area;
-	double m_z_interface_area;
-
+	std::array<int,3> m_interfaceArea;
 	std::vector<std::array<double, 3> > m_normals;
 
 	void createVertices();
@@ -81,14 +75,40 @@ private:
 	void createCells();
 
 	void createInterfaces();
-	int countInterfacesDirection(const Vertex::Coordinate &direction);
-	void createInterfaces_direction(const Vertex::Coordinate &direction);
+	void createInterfacesDirection(const int &direction);
+	int countInterfacesDirection(const int &direction) const;
 
-	long cell_cartesianToLinear(const int &i, const int &j, const int &k) const;
-	long cell_cartesianToLinear(const int ijk[]) const;
-	long vertex_cartesianToLinear(const int &i, const int &j, const int &k) const;
-	long vertex_cartesianToLinear(const int ijk[]) const;
-	long interface_cartesianToLinear(const int &normal, const int &i, const int &j, const int &k) const;
+    std::array<double,3> getSpacing( ) const;
+    double getSpacing( const int &d) const;
+
+	long getCellLinearId(const int &i, const int &j, const int &k) const;
+	long getCellLinearId(const std::array<int,3> &ijk) const;
+	long getCellLinearId(const std::array<double,3> &P)  const;
+
+    std::array<int,3> getCellCartesianId(const long &idx)  const;
+    std::array<int,3> getCellCartesianId(const std::array<double,3> &P)  const;
+
+	long getVertexLinearId(const int &i, const int &j, const int &k) const;
+	long getVertexLinearId(const std::array<int,3> &ijk) const;
+	long getVertexLinearId(const std::array<double,3> &P)  const;
+
+    std::array<int,3> getVertexCartesianId(const long &idx)  const;
+    std::array<int,3> getVertexCartesianId(const std::array<double,3> &P)  const;
+
+    long interfaceLinearIndex(const int &normal, const int &i, const int &j, const int &k) const;
+
+    std::vector<int> extractCellSubSet( int const &, int const & ) ;
+    std::vector<int> extractCellSubSet( std::array<int,3> const &, std::array<int,3> const & ) ;
+    std::vector<int> extractCellSubSet( std::array<double,3> const &, std::array<double,3> const & ) ;
+
+    std::vector<int> extractVertexSubSet( int const &, int const & ) ;
+    std::vector<int> extractVertexSubSet( std::array<int,3> const &, std::array<int,3> const & ) ;
+    std::vector<int> extractVertexSubSet( std::array<double,3> const &, std::array<double,3> const & ) ;
+
+    bool isPointInGrid( std::array<double,3> const & ) ;
+    bool isPointInGrid( std::array<double,3> const &, int &) ;
+    bool isPointInGrid( std::array<double,3> const &, std::array<int,3> &) ;
+    bool isPointInGrid( std::array<double,3> const &, int &, int &, int &) ;
 
 };
 

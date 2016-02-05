@@ -39,13 +39,13 @@ int main(int argc, char *argv[]) {
 
 	std::cout << "Testing Cartesian patch" << "\n";
 
-	std::array<double, 3> origin = {0., 0., 0.};
-	double length = 20;
-	double dh = 0.5;
+	std::array<double, 3> bb0 = {0., 0., 0.};
+	std::array<double, 3> bb1 = {10., 20., 30.};
+	std::array<int, 3> nc = {30, 20, 10};
 
 	std::cout << "  >> 2D Cartesian patch" << "\n";
 
-	Patch *patch_2D = new CartesianPatch(0, 2, origin, length, dh);
+	Patch *patch_2D = new CartesianPatch(0, 2, bb0, bb1, nc);
 	patch_2D->setName("cartesian_uniform_patch_2D");
 	patch_2D->update();
 	patch_2D->writeMesh();
@@ -82,7 +82,7 @@ int main(int argc, char *argv[]) {
 
 	std::cout << "  >> 3D Cartesian patch" << "\n";
 
-	Patch *patch_3D = new CartesianPatch(0, 3, origin, length, dh);
+	Patch *patch_3D = new CartesianPatch(0, 3, bb0, bb1, nc);
 	patch_3D->setName("cartesian_uniform_patch_3D");
 	patch_3D->update();
 	patch_3D->writeMesh();
