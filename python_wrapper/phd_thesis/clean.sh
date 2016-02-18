@@ -7,34 +7,31 @@ if [ "$EXECUTE_DIR_PATH" == "$CURRENT_DIR_PATH" ]; then
     SUB_DIR="./data"
     
     if [ -d "$SUB_DIR" ]; then
-        cd $SUB_DIR
 
-        count=`ls -1 ./*.vtu 2>/dev/null | wc -l`
+        count=`ls -1 ./data/*.vtu 2>/dev/null | wc -l`
 
         if [ $count != 0 ]; then 
-            rm -v ./*.vtu
+            rm -v ./data/*.vtu
         fi
 
-        count=`ls -1 ./*.pvtu 2>/dev/null | wc -l`
+        count=`ls -1 ./data/*.pvtu 2>/dev/null | wc -l`
 
         if [ $count != 0 ]; then 
-            rm -v ./*.pvtu
+            rm -v ./data/*.pvtu
         fi 
 
-        [ -f ./multiple_PABLO.vtm ] && rm -v ./multiple_PABLO.vtm
+        [ -f ./data/multiple_PABLO.vtm ] && rm -v ./data/multiple_PABLO.vtm
         
-        cd ../
     fi
 
     SUB_DIR="./log"
     
     if [ -d "$SUB_DIR" ]; then
-        cd $SUB_DIR
 
-        count=`ls -1 *.log 2>/dev/null | wc -l`
+        count=`ls -1 ./log/*.log 2>/dev/null | wc -l`
 
         if [ $count != 0 ]; then 
-            rm -v ./*.log
+            rm -v ./log/*.log
         fi
 
         cd ../
