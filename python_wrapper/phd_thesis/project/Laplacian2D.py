@@ -1164,8 +1164,7 @@ class Laplacian2D(BaseClass2D.BaseClass2D):
         # Upper bound octree's id contained.
         up_id_octree = o_ranges[0] + n_oct
         # Octree's ids contained.
-        ids_octree_contained = range(o_ranges[0],
-                                     up_id_octree)
+        ids_octree_contained = (o_ranges[0], up_id_octree)
         self._n_edl = numpy.array(self._edl.items(), 
                                   dtype = self._d_type_s)
         mpi_requests = []
@@ -1290,7 +1289,7 @@ class Laplacian2D(BaseClass2D.BaseClass2D):
         idxs = numpy.where(numpy.logical_and((global_idxs >= 
                                               ids_octree_contained[0]),
                                              (global_idxs <= 
-                                              ids_octree_contained[-1])))
+                                              ids_octree_contained[1])))
         # \"idxs[0]\" because is a numpy array, so to select the array we have
         # to use the index notation.
         for idx in idxs[0]:
@@ -1366,7 +1365,7 @@ class Laplacian2D(BaseClass2D.BaseClass2D):
         idxs = numpy.where(numpy.logical_and((global_idxs >= 
                                               ids_octree_contained[0]),
                                              (global_idxs <= 
-                                              ids_octree_contained[-1])))
+                                              ids_octree_contained[1])))
 
         for idx in idxs[0]:
             center_cell_container = octree.get_center(local_idxs[idx])[:2]
