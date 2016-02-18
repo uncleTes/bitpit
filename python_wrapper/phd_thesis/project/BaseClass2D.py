@@ -50,6 +50,7 @@ class BaseClass2D(object):
                                               self._comm, 
                                               self.logger,
                                               type = "local")
+        self._dim = kwargs["dimension"]
 
         initialized = True
         try:
@@ -59,6 +60,8 @@ class BaseClass2D(object):
                    "No global communicator given "
             assert (self._octree is not None), \
                   "No octree given "
+            assert (2 <= self._dim <= 3), \
+                   "Wrong dimension chosen for the problem "
             msg = "Initialized class "
         # http://www.tutorialspoint.com/python/assertions_in_python.htm
         # http://stackoverflow.com/questions/20059766/handle-exception-in-init

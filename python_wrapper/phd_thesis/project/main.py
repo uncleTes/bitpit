@@ -49,8 +49,10 @@ try:
                                            ", "                        , 
                                            False)
 
-    refinements = utilities.get_list_from_string(config.get("PABLO", "Refinements"), 
+    refinements = utilities.get_list_from_string(config.get("PABLO", 
+                                                            "Refinements"), 
                                                  ", ")
+    dimension = config.getint("PROBLEM", "Dimension")
 
     # Octants for grid.
     oct_f_g = [pow(4, ref - 1) for ref in refinements]
@@ -119,6 +121,10 @@ def set_comm_dict(n_grids  ,
     penalization = f_pen if proc_grid else b_pen
     background_boundaries = [anchors[0][0], anchors[0][0] + edges[0],
                              anchors[0][1], anchors[0][1] + edges[0]]
+    if (dimension == 3):
+        background_boundaries.append(anchors[0][2])
+        background_boundaries.append(anchors[0][2] + edges[0])
+
     comm_dictionary.update({"background boundaries" : background_boundaries})
     foreground_boundaries = []
     f_list = range(1, n_grids)
@@ -133,6 +139,10 @@ def set_comm_dict(n_grids  ,
         for i in f_list:
             boundary = [anchors[i][0], anchors[i][0] + edges[i],
                         anchors[i][1], anchors[i][1] + edges[i]]
+            if (dimension == 3):
+                boundary.append(anchors[i][2])
+                boundary.append(anchors[i][2] + edges[i])
+
             foreground_boundaries.append(boundary)
 
     comm_dictionary.update({"penalization" : penalization})
@@ -140,6 +150,7 @@ def set_comm_dict(n_grids  ,
                             foreground_boundaries})
     comm_dictionary.update({"process grid" : proc_grid})
     comm_dictionary.update({"overlapping" : overlapping})
+    comm_dictionary.update({"dimension" : dimension})
     comm_dictionary.update({"particles interaction" : p_inter})
     comm_dictionary.update({"log file" : log_file})
 
@@ -273,7 +284,7 @@ def set_octree(comm_l,
                                                  an[1]         ,
                                                  an[2]         ,
                                                  ed            ,
-                                                 2             , # Dim
+                                                 dimension     , # Dim
                                                  20            , # Max level
                                                  pablo_log_file, # Logfile
                                                  comm_l)         # Comm
@@ -282,7 +293,7 @@ def set_octree(comm_l,
 
     for iteration in xrange(1, refinement_levels):
         pablo.adapt_global_refine()
-    
+   
     pablo.load_balance()
     pablo.update_connectivity()
     pablo.update_ghosts_connectivity()
@@ -290,11 +301,11 @@ def set_octree(comm_l,
     n_octs = pablo.get_num_octants()
     n_nodes = pablo.get_num_nodes()
 
-    centers = numpy.empty([n_octs, 2])
+    centers = numpy.empty([n_octs, dimension])
     
     for i in xrange(0, n_octs):
         # Getting fields 0 and 1 of "pablo.get_center(i)".
-        centers[i, :] = pablo.get_center(i)[:2]
+        centers[i, :] = pablo.get_center(i)[:dimension]
 
     return pablo, centers
 # ------------------------------------------------------------------------------
@@ -449,7 +460,7 @@ def main():
                                        "ascii"                 , # Type
                                        n_octs                  , # Ncells
                                        n_nodes                 , # Nnodes
-                                       4*n_octs)                 # (Nnodes * 
+                                       (2**dimension) * n_octs)  # (Nnodes * 
                                                                  #  pow(2,dim))
     
     ## Add data to "vtk" object to be written later.
