@@ -922,8 +922,8 @@ class Laplacian2D(BaseClass2D.BaseClass2D):
         # Upper bound octree's id contained.
         up_id_octree = o_ranges[0] + n_oct
         # Octree's ids contained.
-        ids_octree_contained = range(o_ranges[0], 
-                                     up_id_octree)
+        ids_octree_contained = xrange(o_ranges[0], 
+                                      up_id_octree)
         # Interpolated solution.
         inter_sol = self.init_array("interpolated solution",
                                     False)
