@@ -3,7 +3,9 @@
 import xml.etree.cElementTree as ET
 import logging
 import os
+import sys
 from mpi4py import MPI
+import numpy 
 import math
 # ------------------------------------------------------------------------------
 
@@ -272,10 +274,10 @@ def check_oct_into_square(oct_center,
     points_to_check.append(an11)
 
     for i, point in enumerate(points_to_check):
-        check = check_point_into_square(point,
-                                        square,
+        check = check_point_into_square(point    ,
+                                        square   ,
                                         threshold,
-                                        logger,
+                                        logger   ,
                                         log_file)
         if not check:
             break
@@ -304,10 +306,10 @@ def check_oct_into_squares(oct_center,
     points_to_check.append(an11)
 
     for i, point in enumerate(points_to_check):
-        check = check_point_into_squares(point,
-                                         squares,
+        check = check_point_into_squares(point    ,
+                                         squares  ,
                                          threshold,
-                                         logger,
+                                         logger   ,
                                          log_file)
         if not check:
             break
@@ -408,6 +410,198 @@ def bil_interp(unknown_point	 ,
 
     return value
 
+# Perspective transformation coefficients (linear coefficients).
+def persp_trans_coeffs(dim            ,
+                       logger         ,
+                       original_points,
+                       transformed_points):
+    coefficients = None
+    matrix = None
+    rhs = None
+
+    try:
+        assert isinstance(original_points, 
+                          list), "No list passed as third argument." 
+        assert isinstance(transformed_points,
+                          list), "No list passed as fourth argument."
+        assert (2 <= dim <= 3), "Wrong dimension passed as first parameter."
+
+        if (dim == 2):
+            uv = original_points
+            xy = transformed_points
+            matrix = numpy.array([[uv[0][0], uv[0][1], 1, 0, 0, 0, -(uv[0][0] * xy[0][0]), -(uv[0][1] * xy[0][0])],
+                                  [uv[1][0], uv[1][1], 1, 0, 0, 0, -(uv[1][0] * xy[1][0]), -(uv[1][1] * xy[1][0])],
+                                  [uv[2][0], uv[2][1], 1, 0, 0, 0, -(uv[2][0] * xy[2][0]), -(uv[2][1] * xy[2][0])],
+                                  [uv[3][0], uv[3][1], 1, 0, 0, 0, -(uv[3][0] * xy[3][0]), -(uv[3][1] * xy[3][0])],
+                                  [0, 0, 0, uv[0][0], uv[0][1], 1, -(uv[0][0] * xy[0][1]), -(uv[0][1] * xy[0][1])],
+                                  [0, 0, 0, uv[1][0], uv[1][1], 1, -(uv[1][0] * xy[1][1]), -(uv[1][1] * xy[1][1])],
+                                  [0, 0, 0, uv[2][0], uv[2][1], 1, -(uv[2][0] * xy[2][1]), -(uv[2][1] * xy[2][1])],
+                                  [0, 0, 0, uv[3][0], uv[3][1], 1, -(uv[3][0] * xy[3][1]), -(uv[3][1] * xy[3][1])]]
+)
+            rhs = numpy.array(xy[0][0], xy[1][0], xy[2][0], xy[3][0], xy[0][1], xy[1][1], xy[2][1], xy[3][1])
+        # Dim = 3.
+        else:
+            uvw = original_points
+            xyz = transformed_points
+            matrix = numpy.array([[uvw[0][0], uvw[0][1], uvw[0][2], 1, 0, 0, 0, 0, 0, 0, 0, 0, -(uvw[0][0]*xyz[0][0]), -(uvw[0][1]*xyz[0][0]), -(uvw[0][2]*xyz[0][0])],
+                                  [uvw[1][0], uvw[1][1], uvw[1][2], 1, 0, 0, 0, 0, 0, 0, 0, 0, -(uvw[1][0]*xyz[1][0]), -(uvw[1][1]*xyz[1][0]), -(uvw[1][2]*xyz[1][0])],
+                                  [uvw[2][0], uvw[2][1], uvw[2][2], 1, 0, 0, 0, 0, 0, 0, 0, 0, -(uvw[2][0]*xyz[2][0]), -(uvw[2][1]*xyz[2][0]), -(uvw[2][2]*xyz[2][0])],
+                                  [uvw[3][0], uvw[3][1], uvw[3][2], 1, 0, 0, 0, 0, 0, 0, 0, 0, -(uvw[3][0]*xyz[3][0]), -(uvw[3][1]*xyz[3][0]), -(uvw[3][2]*xyz[3][0])],
+                                  [0, 0, 0, 0, uvw[0][0], uvw[0][1], uvw[0][2], 1, 0, 0, 0, 0, -(uvw[0][0]*xyz[0][1]), -(uvw[0][1]*xyz[0][1]), -(uvw[0][2]*xyz[0][1])],
+                                  [0, 0, 0, 0, uvw[1][0], uvw[1][1], uvw[1][2], 1, 0, 0, 0, 0, -(uvw[1][0]*xyz[1][1]), -(uvw[1][1]*xyz[1][1]), -(uvw[1][2]*xyz[1][1])],
+                                  [0, 0, 0, 0, uvw[2][0], uvw[2][1], uvw[2][2], 1, 0, 0, 0, 0, -(uvw[2][0]*xyz[2][1]), -(uvw[2][1]*xyz[2][1]), -(uvw[2][2]*xyz[2][1])],
+                                  [0, 0, 0, 0, uvw[3][0], uvw[3][1], uvw[3][2], 1, 0, 0, 0, 0, -(uvw[3][0]*xyz[3][1]), -(uvw[3][1]*xyz[3][1]), -(uvw[3][2]*xyz[3][1])],
+                                  [0, 0, 0, 0, 0, 0, 0, 0, uvw[0][0], uvw[0][1], uvw[0][2], 1, -(uvw[0][0]*xyz[0][2]), -(uvw[0][1]*xyz[0][2]), -(uvw[0][2]*xyz[0][2])],
+                                  [0, 0, 0, 0, 0, 0, 0, 0, uvw[1][0], uvw[1][1], uvw[1][2], 1, -(uvw[1][0]*xyz[1][2]), -(uvw[1][1]*xyz[1][2]), -(uvw[1][2]*xyz[1][2])],
+                                  [0, 0, 0, 0, 0, 0, 0, 0, uvw[2][0], uvw[2][1], uvw[2][2], 1, -(uvw[2][0]*xyz[2][2]), -(uvw[2][1]*xyz[2][2]), -(uvw[2][2]*xyz[2][2])],
+                                  [0, 0, 0, 0, 0, 0, 0, 0, uvw[3][0], uvw[3][1], uvw[3][2], 1, -(uvw[3][0]*xyz[3][2]), -(uvw[3][1]*xyz[3][2]), -(uvw[3][2]*xyz[3][2])]])
+            
+            rhs = numpy.array(xyz[0][0], xyz[1][0], xyz[2][0], xyz[3][0], xyz[0][1], xyz[1][1], xyz[2][1], xyz[3][1], xyz[0][2], xyz[1][2], xyz[2][2], xyz[3][2])
+        
+        coefficients = numpy.linalg.solve(matrix, rhs)
+        # \"append\" does not occur in place:
+        # http://docs.scipy.org/doc/numpy-1.10.0/reference/generated/numpy.append.html
+        # We append 1 as coefficients \"a33\" (or \"a44\", depending on problem's 
+        # dimension) without loss of generality.
+        coefficients = numpy.append(coefficients, 1)
+        coefficients = coefficients.reshape(dim + 1, dim + 1).T    
+    except AssertionError:
+        msg_err = sys.exc_info()[1] 
+        logger.error(msg_err)
+    finally:
+        return coefficients
+
+# Perspective transformation coefficients for adjoint matrix.
+def persp_trans_coeffs_adj(dim   ,
+                           logger,
+                           persp_trans_coeffs):
+    # Adjoint matrix
+    ad_matrix = None
+    A = persp_trans_coeffs
+    
+    try:
+        assert (2 <= dim <= 3), "Wrong dimension passed as first parameter."
+
+        if (dim == 2):
+            ad_matrix = numpy.array([[(A[1][1] * A[2][2]) - (A[1][2] * A[2][1]),
+                                      (A[0][2] * A[2][1]) - (A[0][1] * A[2][2]),
+                                      (A[0][1] * A[1][2]) - (A[0][2] * A[1][1]),
+                                     ],
+                                     [(A[1][2] * A[2][0]) - (A[1][0] * A[2][2]),
+                                      (A[0][0] * A[2][2]) - (A[0][2] * A[2][0]),
+                                      (A[0][2] * A[1][0]) - (A[0][0] * A[1][2]),
+                                     ],
+                                     [(A[1][0] * A[2][1]) - (A[1][1] * A[2][0]),
+                                      (A[0][1] * A[2][0]) - (A[0][0] * A[2][1]),
+                                      (A[0][0] * A[1][1]) - (A[0][1] * A[1][0]),
+                                     ]])
+        # Dim = 3.
+        else:
+            ad00 = (A[1][2] * A[2][3] * A[3][1]) - (A[1][3] * A[2][2] * A[3][1]) + (A[1][3] * A[2][1] * A[3][2]) - \
+                   (A[1][1] * A[2][3] * A[3][2]) - (A[1][2] * A[2][1] * A[3][3]) + (A[1][1] * A[2][2] * A[3][3])
+            ad01 = (A[0][3] * A[2][2] * A[3][1]) - (A[0][2] * A[2][3] * A[3][1]) - (A[0][3] * A[2][1] * A[3][2]) + \
+                   (A[0][1] * A[2][3] * A[3][2]) + (A[0][2] * A[2][1] * A[3][3]) - (A[0][1] * A[2][2] * A[3][3])
+            ad02 = (A[0][2] * A[1][3] * A[3][1]) - (A[0][3] * A[1][2] * A[3][1]) + (A[0][3] * A[1][1] * A[3][2]) - \
+                   (A[0][1] * A[1][3] * A[3][2]) - (A[0][2] * A[1][1] * A[3][3]) + (A[0][1] * A[1][2] * A[3][3])
+            ad03 = (A[0][3] * A[1][2] * A[2][1]) - (A[0][2] * A[1][3] * A[2][1]) - (A[0][3] * A[1][1] * A[2][2]) + \
+                   (A[0][1] * A[1][3] * A[2][2]) + (A[0][2] * A[1][1] * A[2][3]) - (A[0][1] * A[1][2] * A[2][3])
+            ad10 = (A[1][3] * A[2][2] * A[3][0]) - (A[1][2] * A[2][3] * A[3][0]) - (A[1][3] * A[2][0] * A[3][2]) + \
+                   (A[1][0] * A[2][3] * A[3][2]) + (A[1][2] * A[2][0] * A[3][3]) - (A[1][0] * A[2][2] * A[3][3])
+            ad11 = (A[0][2] * A[2][3] * A[3][0]) - (A[0][3] * A[2][2] * A[3][0]) + (A[0][3] * A[2][0] * A[3][2]) - \
+                   (A[0][0] * A[2][3] * A[3][2]) - (A[0][2] * A[2][0] * A[3][3]) + (A[0][0] * A[2][2] * A[3][3])
+            ad12 = (A[0][3] * A[1][2] * A[3][0]) - (A[0][2] * A[1][3] * A[3][0]) - (A[0][3] * A[1][0] * A[3][2]) + \
+                   (A[0][0] * A[1][3] * A[3][2]) + (A[0][2] * A[1][0] * A[3][3]) - (A[0][0] * A[1][2] * A[3][3])
+            ad13 = (A[0][2] * A[1][3] * A[2][0]) - (A[0][3] * A[1][2] * A[2][0]) + (A[0][3] * A[1][0] * A[2][2]) - \
+                   (A[0][0] * A[1][3] * A[2][2]) - (A[0][2] * A[1][0] * A[2][3]) + (A[0][0] * A[1][2] * A[2][3])
+            ad20 = (A[1][1] * A[2][3] * A[3][0]) - (A[1][3] * A[2][1] * A[3][0]) + (A[1][3] * A[2][0] * A[3][1]) - \
+                   (A[1][0] * A[2][3] * A[3][1]) - (A[1][1] * A[2][0] * A[3][3]) + (A[1][0] * A[2][1] * A[3][3])
+            ad21 = (A[0][3] * A[2][1] * A[3][0]) - (A[0][1] * A[2][3] * A[3][0]) - (A[0][3] * A[2][0] * A[3][1]) + \
+                   (A[0][0] * A[2][3] * A[3][1]) + (A[0][1] * A[2][0] * A[3][3]) - (A[0][0] * A[2][1] * A[3][3])
+            ad22 = (A[0][1] * A[1][3] * A[3][0]) - (A[0][3] * A[1][1] * A[3][0]) + (A[0][3] * A[1][0] * A[3][1]) - \
+                   (A[0][0] * A[1][3] * A[3][1]) - (A[0][1] * A[1][0] * A[3][3]) + (A[0][0] * A[1][1] * A[3][3])
+            ad23 = (A[0][3] * A[1][1] * A[2][0]) - (A[0][1] * A[1][3] * A[2][0]) - (A[0][3] * A[1][0] * A[2][1]) + \
+                   (A[0][0] * A[1][3] * A[2][1]) + (A[0][1] * A[1][0] * A[2][3]) - (A[0][0] * A[1][1] * A[2][3])
+            ad30 = (A[1][2] * A[2][1] * A[3][0]) - (A[1][1] * A[2][2] * A[3][0]) - (A[1][2] * A[2][0] * A[3][1]) + \
+                   (A[1][0] * A[2][2] * A[3][1]) + (A[1][1] * A[2][0] * A[3][2]) - (A[1][0] * A[2][1] * A[3][2])
+            ad31 = (A[0][1] * A[2][2] * A[3][0]) - (A[0][2] * A[2][1] * A[3][0]) + (A[0][2] * A[2][0] * A[3][1]) - \
+                   (A[0][0] * A[2][2] * A[3][1]) - (A[0][1] * A[2][0] * A[3][2]) + (A[0][0] * A[2][1] * A[3][2])
+            ad32 = (A[0][2] * A[1][1] * A[3][0]) - (A[0][1] * A[1][2] * A[3][0]) - (A[0][2] * A[1][0] * A[3][1]) + \
+                   (A[0][0] * A[1][2] * A[3][1]) + (A[0][1] * A[1][0] * A[3][2]) - (A[0][0] * A[1][1] * A[3][2])
+            ad33 = (A[0][1] * A[1][2] * A[2][0]) - (A[0][2] * A[1][1] * A[2][0]) + (A[0][2] * A[1][0] * A[2][1]) - \
+                   (A[0][0] * A[1][2] * A[2][1]) - (A[0][1] * A[1][0] * A[2][2]) + (A[0][0] * A[1][1] * A[2][2])
+
+            ad_matrix = numpy.array([[ad00, ad01, ad02, ad03],
+                                     [ad10, ad11, ad12, ad13],
+                                     [ad20, ad21, ad22, ad23],
+                                     [ad30, ad31, ad32, ad33]])
+    except AssertionError:
+        msg_err = sys.exc_info()[1] 
+        logger.error(msg_err)
+    finally:
+        return ad_matrix
+
+def apply_persp_trans_inv(logger,
+                          point ,
+                          coefficients):
+    # Numpy point.
+    np_point = numpy.asarray(point,
+                             dtype = numpy.float64)
+    # Homogeneous coordinates.
+    np_point = numpy.append(n_point, 1)
+    # Transformed inverse point.
+    t_i_point = None
+    dim = point.shape[0]
+    ad_matrix = coefficients
+
+    try:
+        assert (2 <= dim <= 3), "Wrong size for the array passed as point."
+        if (dim == 2):
+            xy = point
+            w_first = 1 / ((ad_matrix[0][2] * xy[0]) + \
+                           (ad_matrix[1][2] * xy[1]) + \
+                           ad_matrix[2][2])
+        else:
+            xyz = point
+            w_first = 1 / ((ad_matrix[0][3] * xyz[0]) + \
+                           (ad_matrix[1][3] * xyz[1]) + \
+                           (ad_matrix[2][3] * xyz[2]) + \
+                           ad_matrix[3][3])
+
+        np_point = numpy.multiply(np_point, w_first)
+        # Numpy transformed inverse point.
+        np_t_i_point = numpy.dot(np_point, ad_matrix)
+        t_i_point = np_t_i_point[0 : -1].tolist()
+    except AssertionError:
+        msg_err = sys.exc_info()[1] 
+        logger.error(msg_err)
+    finally:
+        return t_i_point
+
+def apply_persp_trans(logger,
+                      point ,
+                      coefficients):
+    # Numpy point.
+    np_point = numpy.asarray(point, 
+                             dtype = numpy.float64)
+    # Homogeneous coordinates.
+    np_point = numpy.append(n_point, 1)
+    # Transformed point.
+    t_point = None
+
+    try:
+        # Number of columns equal to number of rows.
+        assert (np_point.shape[0] == coefficients.shape[0]), \
+               "Wrong dimensions for array-matrix multiplications."
+        # Numpy transformed point.
+        np_t_point = numpy.dot(np_point, coefficients)
+        np_t_point = numpy.divide(np_t_point,
+                                  np_t_point[-1])
+        t_point = np_t_point[0 : -1].tolist()
+    except AssertionError:
+        msg_err = sys.exc_info()[1] 
+        logger.error(msg_err)
+    finally:
+        return t_point
 # ------------------------------------------------------------------------------
 
 # ------------------------------------LOGGER------------------------------------
