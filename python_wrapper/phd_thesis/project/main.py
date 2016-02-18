@@ -55,7 +55,7 @@ try:
     dimension = config.getint("PROBLEM", "Dimension")
 
     # Octants for grid.
-    oct_f_g = [pow(4, ref - 1) for ref in refinements]
+    oct_f_g = [pow(2**dimension, ref) for ref in refinements]
 
     # Total number of octants on the totality of the grids.
     tot_oct = sum(oct_f_g)
@@ -291,7 +291,7 @@ def set_octree(comm_l,
 
     pablo.set_balance(0, True)
 
-    for iteration in xrange(1, refinement_levels):
+    for iteration in xrange(0, refinement_levels):
         pablo.adapt_global_refine()
    
     pablo.load_balance()
