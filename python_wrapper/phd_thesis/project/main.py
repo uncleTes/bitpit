@@ -335,14 +335,22 @@ def compute(comm_dictionary     ,
     laplacian.init_sol()
     laplacian.init_mat((d_nnz, o_nnz))
     not_penalized_centers = laplacian.not_pen_centers
-    not_penalized_x = numpy.asarray([center[0] for center in not_penalized_centers])
-    not_penalized_y = numpy.asarray([center[1] for center in not_penalized_centers])
+    not_penalized_x = numpy.asarray([center[0] for center in \
+                                     not_penalized_centers])
+    not_penalized_y = numpy.asarray([center[1] for center in \
+                                     not_penalized_centers])
+    not_penalized_z = None
+    if (dimension == 3):
+        not_penalized_z = numpy.asarray([center[2] for center in \
+                                         not_penalized_centers])
     # Evaluating exact solution in the centers of the PABLO's cells.
     exact_solution.e_sol(not_penalized_x, 
-                         not_penalized_y)
+                         not_penalized_y,
+                         not_penalized_z)
     # Evaluating second derivative of the exact solution,
     exact_solution.e_s_der(not_penalized_x, 
-                           not_penalized_y)
+                           not_penalized_y,
+                           not_penalized_z)
     laplacian.init_rhs(exact_solution.s_der)
     laplacian.set_b_c()
     laplacian.update_values(intercomm_dictionary)
@@ -355,7 +363,8 @@ def compute(comm_dictionary     ,
     # Creating a numpy array with two single numpy arrays. Note that you 
     # could have done this also with two simple python's lists.
     exact_solution.e_sol(centers[:, 0], 
-                         centers[:, 1])
+                         centers[:, 1],
+                         centers[:, 2] if (dimension == 3) else None)
     data_to_save = numpy.array([exact_solution.sol,
                                 interpolate_sol.getArray()])
 

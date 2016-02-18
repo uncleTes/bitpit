@@ -23,7 +23,8 @@ class ExactSolution2D(BaseClass2D.BaseClass2D):
     # http://stackoverflow.com/questions/136097/what-is-the-difference-between-staticmethod-and-classmethod-in-python
     @staticmethod
     def solution(x, 
-                 y):
+                 y,
+                 z = None):
         """Static method which returns the solution:  
            sin((x - 0.5)^2 + (y - 0.5)^2).
            
@@ -42,7 +43,8 @@ class ExactSolution2D(BaseClass2D.BaseClass2D):
     #                              ((x - 0.5)^2 + (y - 0.5)^2).
     @staticmethod
     def s_s_der(x,
-                y):
+                y,
+                z = None):
         """Static method which returns the solution second derivative: 
            4 * cos((x - 0.5)^2 + (y - 0.5)^2) - 
            4 * sin((x - 0.5)^2 + (y - 0.5)^2) *
@@ -67,7 +69,8 @@ class ExactSolution2D(BaseClass2D.BaseClass2D):
     # Evaluate solution.
     def e_sol(self, 
               x   , 
-              y):
+              y   ,
+              z = None):
         """Method which evaluates the solution. It calls the method \"solution\"
            to obtain it; at a first glance can appear useless, but it has the
            capability to be independent from the exact solution, so for the
@@ -92,7 +95,8 @@ class ExactSolution2D(BaseClass2D.BaseClass2D):
         try:
             assert len(x) == len(y)
             sol = ExactSolution2D.solution(x, 
-                                           y)
+                                           y,
+                                           z)
             msg = "Evaluated exact solution "
             extra_msg = "\":\n" + str(sol)
             self.log_msg(msg   ,
@@ -108,7 +112,8 @@ class ExactSolution2D(BaseClass2D.BaseClass2D):
     # Evaluate second derivative.
     def e_s_der(self, 
                 x   ,
-                y):
+                y   ,
+                z = None):
         """Method which evaluates the second derivative. It calls the method
            \"s_s_der\" to obtain it; at a first glance can appear useless, but
            it has the capability to be independent from the second derivative, so
@@ -131,7 +136,8 @@ class ExactSolution2D(BaseClass2D.BaseClass2D):
             assert len(x) == len(y)
             # Second derivative.
             s_der = ExactSolution2D.s_s_der(x, 
-                                            y)
+                                            y,
+                                            z)
             msg = "Evaluated second derivative "
             extra_msg = "\":\n" + str(s_der)
             self.log_msg(msg   ,
