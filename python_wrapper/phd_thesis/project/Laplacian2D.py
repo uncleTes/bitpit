@@ -1275,7 +1275,7 @@ class Laplacian2D(BaseClass2D.BaseClass2D):
                                 # TODO: 12 or 16 instead of 9 for grid not
                                 # perfectly superposed??
                                 range(0, l_l_edg)]).reshape(l_l_edg, l_s)
-        centers = [(stencils[i][1], stencils[i][2]) for i in range(0, l_l_edg)]
+        centers = [(stencils[i][1], stencils[i][2], 0) for i in range(0, l_l_edg)]
         # Vectorized functions are just syntactic sugar:
         # http://stackoverflow.com/questions/7701429/efficient-evaluation-of-a-function-at-every-cell-of-a-numpy-array
         # http://stackoverflow.com/questions/8079061/function-application-over-numpys-matrix-row-column
@@ -1359,7 +1359,7 @@ class Laplacian2D(BaseClass2D.BaseClass2D):
         # PABLitO we passed all the array \"center\". I think that it is due to
         # the change of type of the input arguments from \"dvector\" to 
         # \"darray\".
-        local_idxs = numpy.array([octree.get_point_owner_idx(center[0:2]) for 
+        local_idxs = numpy.array([octree.get_point_owner_idx((center[0], center[1], 0)) for 
                                   center in centers])
         global_idxs = local_idxs + o_ranges[0]
         idxs = numpy.where(numpy.logical_and((global_idxs >= 
