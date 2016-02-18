@@ -53,22 +53,23 @@ class BaseClass2D(object):
 
         initialized = True
         try:
-            assert self._comm is not None
-            assert self._comm_w is not None
-            assert self._octree is not None
-
+            assert (self._comm is not None), \
+                   "No local communicator given "
+            assert (self._comm_w is not None), \
+                   "No global communicator given "
+            assert (self._octree is not None), \
+                  "No octree given "
             msg = "Initialized class "
         # http://www.tutorialspoint.com/python/assertions_in_python.htm
         # http://stackoverflow.com/questions/20059766/handle-exception-in-init
         except AssertionError:
+            msg = sys.exc_info()[1] 
             initialized = False
             if self._comm_w:
-                msg = "\"MPI Abort\" called during initialization "
                 # http://stackoverflow.com/questions/9064079/aborting-execution-of-all-processes-in-mpi
                 # http://stackoverflow.com/questions/5433697/terminating-all-processes-with-mpi
                 self._comm_w.Abort(1)
             else:
-                msg = "\"sys.exit(1)\" called during initialization "
                 sys.exit(1)
         # This \"finally\" is executed also after the \"sys.exit()\" because it
         # is not a \"os._exit()\", and so it throws an exception \"SystemExit\".
