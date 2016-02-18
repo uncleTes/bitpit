@@ -371,40 +371,6 @@ def compute(comm_dictionary     ,
     return data_to_save
 # ------------------------------------------------------------------------------
 
-# ------------------------------------------------------------------------------
-def stub_compute(comm_dictionary     ,
-                 intercomm_dictionary,
-                 centers):
-    """A stub method which stores exact solution and its second derivative.
-
-       Arguments:
-           comm_dictionary (dict) : dictionary containing useful data for each
-                                    intra-communicator and grid.
-           intercomm_dictionary (dict) : dictionary containing the 
-                                         intracommunicators created.
-           centers (list[lists]) : list containing lists of the centers of the
-                                   quadtree contained in the current process.
-
-       Returns:
-           data_to_save (numpy.array) : array containings the data to be saved
-                                        subsequently into the \"VTK\" file;
-                                        in this case, are onlu exact values."""
-
-    exact_solution = ExactSolution2D.ExactSolution2D(comm_dictionary)
-    # Evaluating exact solution in the centers of the PABLO's cells.
-    exact_solution.e_sol(centers[:, 0], 
-                         centers[:, 1])
-    # Evaluating second derivative of the exact solution,
-    exact_solution.e_s_der(centers[:, 0], 
-                           centers[:, 1])
-
-    data_to_save = numpy.array([exact_solution.sol,
-                                exact_solution.s_der])
-
-    return data_to_save
-
-# ------------------------------------------------------------------------------
-
 # -------------------------------------MAIN-------------------------------------
 def main():
     """Main function....yeah, the name is self explanatory."""
@@ -519,9 +485,6 @@ if __name__ == "__main__":
     t_start = time.time()
 
     import cProfile
-    # Profile's stats will be written on the file \'filename\'.
-    #cProfile.run('main()', sort='time', filename='cProfile_stats.txt')
-    # Profile's stats will be printed on the screen at the end of the program.
     # http://stackoverflow.com/questions/3898266/what-is-this-cprofile-result-telling-me-i-need-to-fix
     #cProfile.run('main()', sort='cumulative')
     main()
@@ -552,7 +515,3 @@ if __name__ == "__main__":
         utilities.log_msg(msg     ,
                           log_file,
                           logger)
-
-        #data_to_render = ["exact", "evaluated"]
-        #rendering_multi_block_data(file_name, 
-        #                           data_to_render)
