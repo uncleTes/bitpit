@@ -26,6 +26,9 @@ cdef extern from "My_Class_VTK.hpp" namespace "bitpit":
                      string loc_ , 
                      string cod_)
 
+        void applyTransf(vector[darray3]& transGeoNodes,
+                         vector[darray3]& transGhostGeoNodes)
+
 
 cdef class Py_My_Class_VTK:
     cdef My_Class_VTK[MyPabloUniform,
@@ -69,4 +72,24 @@ cdef class Py_My_Class_VTK:
                              dataType   ,
                              pointOrCell,
                              fileType)
+    
+    def apply_trans(self,
+                    geo_nodes,
+                    geo_ghost_nodes):
+        cdef vector[darray3] C_geo_nodes
+        cdef vector[darray3] C_ghost_geo_nodes
+        cdef darray3 node 
+
+        for geo_node in geo_nodes:
+            for i in xrange(0, len(geo_node)):
+                node[i] = geo_node[i]
+            C_geo_nodes.push_back(node)
+        
+        for ghost_geo_node in geo_ghost_nodes:
+            for i in xrange(0, len(ghost_geo_node)):
+                node[i] = ghost_geo_node[i]
+            C_ghost_geo_nodes.push_back(node)
+
+                
+        self.thisptr.applyTransf(<vector[darray3]&>C_geo_nodes, <vector[darray3]&>C_ghost_geo_nodes)
 
