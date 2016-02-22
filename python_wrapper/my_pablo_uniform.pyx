@@ -42,6 +42,9 @@ cdef extern from "MyPabloUniform.hpp" namespace "bitpit":
 
         Octant* _getPointOwner(darray3& point)
 
+        darray3 _getGhostNodeCoordinates(uint32_t inode)
+        darray3 _getNodeCoordinates(uint32_t inode)
+
 cdef class Py_My_Pablo_Uniform(Py_Para_Tree):
     cdef MyPabloUniform* der_thisptr
 
@@ -221,3 +224,34 @@ cdef class Py_My_Pablo_Uniform(Py_Para_Tree):
 
         return py_oct
 
+    def prova_trans(self, coefficients):
+        import utilities
+        cdef size_t nNodes = self.thisptr.getNumNodes()
+        cdef size_t nGhostNodes = (self.thisptr.getGhostNodes()).size()
+        cdef int index
+        cdef darray3 coordinates
+        cdef vector[darray3] C_geo_nodes
+        cdef vector[darray3] C_ghost_geo_nodes 
+        geo_nodes = []
+        ghost_geo_nodes = []
+
+        for index in xrange(0, nNodes):
+            py_coordinates = []
+            coordinates = self.der_thisptr._getNodeCoordinates(index)
+            for i in xrange(0, 2):
+                py_coordinates.append(coordinates[i])
+
+            to_append = utilities.apply_persp_trans(py_coordinates, coefficients)
+            geo_nodes.append(to_append)
+        
+        for index in xrange(0, nGhostNodes):
+            py_coordinates = []
+            coordinates = self.der_thisptr._getGhostNodeCoordinates(index)
+            for i in xrange(0, 2):
+                py_coordinates.append(coordinates[i])
+            
+            to_append = utilities.apply_persp_trans(py_coordinates, coefficients)
+            ghost_geo_nodes.append(to_append)
+
+        return (geo_nodes, ghost_geo_nodes)
+        
