@@ -64,6 +64,19 @@ public:
                 ghostGeoNodes[index] = grid._getGhostNodeCoordinates(index);
     }
 
+    void applyTransf(darr3vector& transGeoNodes,
+                     darr3vector& transGhostGeoNodes) {
+        size_t nNodes = grid._getNumNodes();
+        size_t nGhostNodes = grid._getGhostNodes().size();
+
+        for (size_t index = 0; index < nNodes; ++index)
+                geoNodes[index] = transGeoNodes[index];
+        
+        for (size_t index = 0; index < nGhostNodes; ++index)
+                ghostGeoNodes[index] = transGhostGeoNodes[index];
+    }
+        
+
     void flushData(fstream &str   , 
                    VTKFormat codex,
                    string name) {
