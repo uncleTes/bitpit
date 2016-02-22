@@ -48,6 +48,11 @@ try:
     edges = utilities.get_list_from_string(config.get("PABLO", "Edges"), 
                                            ", "                        , 
                                            False)
+    t_points = utilities.get_lists_from_string(config.get("PABLO",
+                                                          "TransformedPoints"),
+                                               ";"                            ,
+                                               ","                            ,
+                                               False)
 
     refinements = utilities.get_list_from_string(config.get("PABLO", 
                                                             "Refinements"), 
@@ -304,11 +309,38 @@ def set_octree(comm_l,
     centers = numpy.empty([n_octs, dimension])
     
     for i in xrange(0, n_octs):
-        # Getting fields 0 and 1 of "pablo.get_center(i)".
         centers[i, :] = pablo.get_center(i)[:dimension]
 
     return pablo, centers
 # ------------------------------------------------------------------------------
+
+def compute_transf_geometry(comm_dictionary     ,
+                            intercomm_dictionary,
+                            logger              ,
+                            proc_grid           ,
+                            centers):
+    # Original points.
+    or_points = [anchors[proc_grid][0], anchors[proc_grid][1], anchors[proc_grid][2],
+                 anchors[proc_grid][0] + edges[proc_grid], anchors[proc_grid][1], anchors[proc_grid][2],
+                 anchors[proc_grid][0] + edges[proc_grid], anchors[proc_grid][1] + edges[proc_grid], anchors[proc_grid][2],
+                 anchors[proc_grid][0], anchors[proc_grid][1] + edges[proc_grid], anchors[proc_grid][2]]
+
+    trans_coeff = utilities.persp_trans_coeffs(2        ,
+                                               logger   ,
+                                               or_points,
+                                               t_points[proc_grid])
+
+    # New centers.
+    n_centers = [utilities.apply_persp_trans(center, trans_coeff, logger) for center in centers]
+    n_n_centers = numpy.array(n_centers)
+    exact_solution = ExactSolution2D.ExactSolution2D(comm_dictionary)
+    exact_solution.e_sol(n_n_centers[:, 0], 
+                         n_n_centers[:, 1],
+                         n_n_centers[:, 2] if (dimension == 3) else None)
+    data_to_save = numpy.array([exact_solution.sol])
+
+    return (data_to_save, trans_coeff)
+    
 
 # ------------------------------------------------------------------------------
 def compute(comm_dictionary     ,
@@ -420,13 +452,20 @@ def main():
     comm_dictionary.update({"octree" : pablo})
     comm_dictionary.update({"grid processes" : procs_l_lists[proc_grid]})
     
+    data_to_save, trans_coeff = compute_transf_geometry(comm_dictionary     ,
+                                                        intercomm_dictionary,
+                                                        logger              ,
+                                                        proc_grid           ,
+                                                        centers)
 
-    data_to_save = compute(comm_dictionary     ,
-                           intercomm_dictionary,
-                           centers)
+    #data_to_save = compute(comm_dictionary     ,
+    #                       intercomm_dictionary,
+    #                       centers)
 
     n_octs = pablo.get_num_octants()
     n_nodes = pablo.get_num_nodes()
+
+    (geo_nodes, ghost_geo_nodes) = pablo.prova_trans(trans_coeff)
 
     vtk = my_class_vtk.Py_My_Class_VTK(data_to_save            , # Data
                                        pablo                   , # Octree
@@ -437,13 +476,13 @@ def main():
                                        n_nodes                 , # Nnodes
                                        (2**dimension) * n_octs)  # (Nnodes * 
                                                                  #  pow(2,dim))
-    
+    vtk.apply_trans(geo_nodes, ghost_geo_nodes) 
     ## Add data to "vtk" object to be written later.
-    vtk.add_data("evaluated", # Data
-                 1          , # Data dim
-                 "Float64"  , # Data type
-                 "Cell"     , # Cell or Point
-                 "ascii")     # File type
+    #vtk.add_data("evaluated", # Data
+    #             1          , # Data dim
+    #             "Float64"  , # Data type
+    #             "Cell"     , # Cell or Point
+    #             "ascii")     # File type
     vtk.add_data("exact"  , 
                  1        , 
                  "Float64", 
