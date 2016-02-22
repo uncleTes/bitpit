@@ -427,8 +427,10 @@ def persp_trans_coeffs(dim            ,
         assert (2 <= dim <= 3), "Wrong dimension passed as first parameter."
 
         if (dim == 2):
-            uv = original_points
-            xy = transformed_points
+            uv = numpy.array(original_points, dtype = numpy.float64)
+            uv.resize(4, 3)
+            xy = numpy.array(transformed_points, dtype = numpy.float64)
+            xy.resize(4,3)
             matrix = numpy.array([[uv[0][0], uv[0][1], 1, 0, 0, 0, -(uv[0][0] * xy[0][0]), -(uv[0][1] * xy[0][0])],
                                   [uv[1][0], uv[1][1], 1, 0, 0, 0, -(uv[1][0] * xy[1][0]), -(uv[1][1] * xy[1][0])],
                                   [uv[2][0], uv[2][1], 1, 0, 0, 0, -(uv[2][0] * xy[2][0]), -(uv[2][1] * xy[2][0])],
@@ -436,9 +438,8 @@ def persp_trans_coeffs(dim            ,
                                   [0, 0, 0, uv[0][0], uv[0][1], 1, -(uv[0][0] * xy[0][1]), -(uv[0][1] * xy[0][1])],
                                   [0, 0, 0, uv[1][0], uv[1][1], 1, -(uv[1][0] * xy[1][1]), -(uv[1][1] * xy[1][1])],
                                   [0, 0, 0, uv[2][0], uv[2][1], 1, -(uv[2][0] * xy[2][1]), -(uv[2][1] * xy[2][1])],
-                                  [0, 0, 0, uv[3][0], uv[3][1], 1, -(uv[3][0] * xy[3][1]), -(uv[3][1] * xy[3][1])]]
-)
-            rhs = numpy.array(xy[0][0], xy[1][0], xy[2][0], xy[3][0], xy[0][1], xy[1][1], xy[2][1], xy[3][1])
+                                  [0, 0, 0, uv[3][0], uv[3][1], 1, -(uv[3][0] * xy[3][1]), -(uv[3][1] * xy[3][1])]])
+            rhs = numpy.array([xy[0][0], xy[1][0], xy[2][0], xy[3][0], xy[0][1], xy[1][1], xy[2][1], xy[3][1]])
         # Dim = 3.
         else:
             uvw = original_points
@@ -577,14 +578,14 @@ def apply_persp_trans_inv(logger,
     finally:
         return t_i_point
 
-def apply_persp_trans(logger,
-                      point ,
-                      coefficients):
+def apply_persp_trans(point ,
+                      coefficients,
+                      logger = None):
     # Numpy point.
     np_point = numpy.asarray(point, 
                              dtype = numpy.float64)
     # Homogeneous coordinates.
-    np_point = numpy.append(n_point, 1)
+    np_point = numpy.append(np_point, 1)
     # Transformed point.
     t_point = None
 
@@ -596,10 +597,16 @@ def apply_persp_trans(logger,
         np_t_point = numpy.dot(np_point, coefficients)
         np_t_point = numpy.divide(np_t_point,
                                   np_t_point[-1])
-        t_point = np_t_point[0 : -1].tolist()
+        # Returning however 3 coordinates, also being in 2D. New \"PABLO\"
+        # is intrinsically 3D.
+        np_t_point[-1] = 0 
+        t_point = np_t_point.tolist()
     except AssertionError:
-        msg_err = sys.exc_info()[1] 
-        logger.error(msg_err)
+        msg_err = sys.exc_info()[1]
+        if logger is not None: 
+            logger.error(msg_err)
+        else:
+            print(msg_error)
     finally:
         return t_point
 # ------------------------------------------------------------------------------
