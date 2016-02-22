@@ -5,6 +5,8 @@ from libcpp.map cimport map
 from libcpp.string cimport string
 from libcpp cimport bool
 import os
+import numpy
+cimport numpy
 
 IF (ENABLE_MPI):
     cimport mpi4py.MPI as MPI
@@ -137,6 +139,11 @@ cdef extern from "ParaTree.hpp" namespace "bitpit":
         uint64_t getGlobalNumOctants()
 	
         uint8_t getNfaces()
+        
+        uint8_t getNnodes()
+
+        void getFacenode(uint8_t nodeface[6][4])
+
  
 cdef class Py_Para_Tree:
     cdef ParaTree* thisptr
@@ -473,3 +480,15 @@ cdef class Py_Para_Tree:
 
     def get_n_faces(self):
         return self.thisptr.getNfaces()
+    
+    def get_n_nodes(self):
+        return self.thisptr.getNnodes()
+
+    def get_face_node(self):
+        cdef numpy.ndarray[dtype=numpy.uint8_t, mode="c", ndim=2] face_node = numpy.zeros((6, 4), dtype = numpy.uint8)
+
+        self.thisptr.getFacenode(<uint8_t (*)[4]>&face_node[0, 0])
+
+        return face_node.tolist()
+ 
+
