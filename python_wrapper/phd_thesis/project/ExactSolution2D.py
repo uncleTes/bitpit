@@ -65,6 +65,60 @@ class ExactSolution2D(BaseClass2D.BaseClass2D):
                                numpy.multiply(numpy.power(x - 0.5, 2)  + 
                                               numpy.power(y - 0.5, 2),
                                               4)))
+
+    # Solution second derivative x.
+    @staticmethod
+    def s_s_der_x(x,
+                  y,
+                  z = None):
+
+        return (numpy.multiply(numpy.cos(numpy.power(x - 0.5, 2)       + 
+                                         numpy.power(y - 0.5, 2)),
+                               2)                                      -
+                numpy.multiply(numpy.sin(numpy.power(x - 0.5, 2)       + 
+                                         numpy.power(y - 0.5, 2)), 
+                               numpy.multiply(numpy.power(x - 0.5, 2),
+                                              4)))
+    # Solution second derivative y.
+    @staticmethod
+    def s_s_der_y(x,
+                  y,
+                  z = None):
+
+        return (numpy.multiply(numpy.cos(numpy.power(x - 0.5, 2)       + 
+                                         numpy.power(y - 0.5, 2)),
+                               2)                                      -
+                numpy.multiply(numpy.sin(numpy.power(x - 0.5, 2)       + 
+                                         numpy.power(y - 0.5, 2)), 
+                               numpy.multiply(numpy.power(y - 0.5, 2),
+                                              4)))
+    @staticmethod
+    def multiply_exact_array(array, value):
+        return numpy.multiply(array, value)
+        
+    
+    # Solution mixed second derivative = - 4 * sin((x - 0.5)^2 + (y - 0.5)^2) *
+    #                                    ((x - 0.5) * (y - 0.5)).
+    @staticmethod
+    def s_m_s_der(x,
+                  y,
+                  z = None):
+        """Static method which returns the solution mixed second derivative: 
+           -4 * sin((x - 0.5)^2 + (y - 0.5)^2) *
+           ((x - 0.5) * (y - 0.5)).
+           
+           Arguments:
+               x (number or list[numbers]) : abscissa coordinate.
+               y (number or list[numbers]) : ordinate coordinate.
+           
+           Returns:
+               a numpy vector with the solution second derivative."""
+
+        return (numpy.multiply(numpy.sin(numpy.power(x - 0.5, 2)       + 
+                                         numpy.power(y - 0.5, 2)), 
+                               numpy.multiply((x - 0.5), 
+                                              numpy.multiply((y - 0.5),
+                                                             -4))))
     
     # Evaluate solution.
     def e_sol(self, 
@@ -148,6 +202,87 @@ class ExactSolution2D(BaseClass2D.BaseClass2D):
             msg = "\"MPI Abort\" called setting second derivative for "
             self.log_msg(msg)
             self._comm_w.Abort(1)
+    
+    # Evaluate mixed second derivative.
+    def e_m_s_der(self, 
+                  x   ,
+                  y   ,
+                  z = None):
+        """Method which evaluates the mixed second derivative. It calls the method
+           \"s_s_der\" to obtain it; at a first glance can appear useless, but
+           it has the capability to be independent from the second derivative, so
+           for the user is useful; one has to change only the method \"s_s_der\"
+           to mantain independence.
+           
+           Arguments:
+               x (number or list[numbers]) : abscissa coordinate.
+               y (number or list[numbers]) : ordinate coordinate.
+
+           Raises:
+               AssertionError : if \"x\" has length different from the one of 
+                                \"y\" then an AssertionError is Raised and
+                                catched, launching an MPI Abort on the 
+                                \"_comm_w\" attribute.
+
+           Returns:
+               a numpy vector with the solution second derivative."""
+        try:
+            assert len(x) == len(y)
+            # Mixed second derivative.
+            m_s_der = ExactSolution2D.s_m_s_der(x, 
+                                                y,
+                                                z)
+            msg = "Evaluated mixed second derivative "
+            extra_msg = "\":\n" + str(m_s_der)
+            self.log_msg(msg   ,
+                         "info",
+                         extra_msg)
+            self._m_s_der = m_s_der
+        except AssertionError:
+            msg = "\"MPI Abort\" called setting second derivative for "
+            self.log_msg(msg)
+            self._comm_w.Abort(1)
+    # Evaluate second derivative.
+    def e_s_der_x(self, 
+                x   ,
+                y   ,
+                z = None):
+        try:
+            assert len(x) == len(y)
+            # Second derivative.
+            s_der_x = ExactSolution2D.s_s_der_x(x, 
+                                            y,
+                                            z)
+            msg = "Evaluated second derivative for x"
+            extra_msg = "\":\n" + str(s_der_x)
+            self.log_msg(msg   ,
+                         "info",
+                         extra_msg)
+            self._s_der_x = s_der_x
+        except AssertionError:
+            msg = "\"MPI Abort\" called setting second derivative for "
+            self.log_msg(msg)
+            self._comm_w.Abort(1)
+    def e_s_der_y(self, 
+                x   ,
+                y   ,
+                z = None):
+        try:
+            assert len(x) == len(y)
+            # Second derivative.
+            s_der_y = ExactSolution2D.s_s_der_y(x, 
+                                            y,
+                                            z)
+            msg = "Evaluated second derivative for y"
+            extra_msg = "\":\n" + str(s_der_y)
+            self.log_msg(msg   ,
+                         "info",
+                         extra_msg)
+            self._s_der_y = s_der_y
+        except AssertionError:
+            msg = "\"MPI Abort\" called setting second derivative for "
+            self.log_msg(msg)
+            self._comm_w.Abort(1)
 
     @property
     def sol(self):
@@ -156,3 +291,13 @@ class ExactSolution2D(BaseClass2D.BaseClass2D):
     @property
     def s_der(self):
         return self._s_der
+    
+    @property
+    def m_s_der(self):
+        return self._m_s_der
+    @property
+    def s_der_x(self):
+        return self._s_der_x
+    @property
+    def s_der_y(self):
+        return self._s_der_y

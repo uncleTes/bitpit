@@ -484,6 +484,7 @@ def persp_trans_coeffs_adj(dim   ,
         assert (2 <= dim <= 3), "Wrong dimension passed as first parameter."
 
         if (dim == 2):
+            print(A[1][1])
             ad_matrix = numpy.array([[(A[1][1] * A[2][2]) - (A[1][2] * A[2][1]),
                                       (A[0][2] * A[2][1]) - (A[0][1] * A[2][2]),
                                       (A[0][1] * A[1][2]) - (A[0][2] * A[1][1]),
@@ -541,17 +542,53 @@ def persp_trans_coeffs_adj(dim   ,
     finally:
         return ad_matrix
 
+def numpy_compute_w_first(x_s,
+                          y_s,
+                          coefficients):
+    n_x = numpy.multiply(x_s, coefficients[0][2])    
+    n_y = numpy.multiply(y_s, coefficients[1][2])
+    n_div = numpy.add(n_x, n_y)
+    n_div = numpy.add(n_div, coefficients[2][2])
+    return numpy.true_divide(1, n_div)     
+
+def compute_w_first(logger,
+                    point,
+                    coefficients):
+    w_first = None
+    dim = len(point)
+    ad_matrix = coefficients
+
+    try:
+        assert (2 <= dim <= 3), "Wrong size for the array passed as point."
+        if (dim == 2):
+            xy = point
+            w_first = 1 / ((ad_matrix[0][2] * xy[0]) + \
+                           (ad_matrix[1][2] * xy[1]) + \
+                           ad_matrix[2][2])
+        else:
+            xyz = point
+            w_first = 1 / ((ad_matrix[0][3] * xyz[0]) + \
+                           (ad_matrix[1][3] * xyz[1]) + \
+                           (ad_matrix[2][3] * xyz[2]) + \
+                           ad_matrix[3][3])
+
+    except AssertionError:
+        msg_err = sys.exc_info()[1] 
+        logger.error(msg_err)
+    finally:
+        return w_first
+
 def apply_persp_trans_inv(logger,
                           point ,
                           coefficients):
     # Numpy point.
     np_point = numpy.asarray(point,
                              dtype = numpy.float64)
+    dim = np_point.shape[0]
     # Homogeneous coordinates.
-    np_point = numpy.append(n_point, 1)
+    np_point = numpy.append(np_point, 1)
     # Transformed inverse point.
     t_i_point = None
-    dim = point.shape[0]
     ad_matrix = coefficients
 
     try:
@@ -595,8 +632,8 @@ def apply_persp_trans(point ,
                "Wrong dimensions for array-matrix multiplications."
         # Numpy transformed point.
         np_t_point = numpy.dot(np_point, coefficients)
-        np_t_point = numpy.divide(np_t_point,
-                                  np_t_point[-1])
+        np_t_point = numpy.true_divide(np_t_point,
+                                       np_t_point[-1])
         # Returning however 3 coordinates, also being in 2D. New \"PABLO\"
         # is intrinsically 3D.
         np_t_point[-1] = 0 

@@ -157,7 +157,7 @@ class Laplacian2D(BaseClass2D.BaseClass2D):
         centers = _centers
         values = _values
         edges_or_nodes = _edges_or_nodes        
-        # Checking if passed argumetns are lists or not. If not, we have to do
+        # Checking if passed arguments are lists or not. If not, we have to do
         # something.
         try:
             len(centers)
@@ -245,16 +245,17 @@ class Laplacian2D(BaseClass2D.BaseClass2D):
     # Evaluate boundary conditions. 
     def eval_b_c(self   ,
                  centers,
-                 faces):
+                 f_o_n  ,
+                 codim = None):
         """Method which evaluate boundary condition on one octree or more,
            depending by the number of the \"center\" passed by.
            
            Arguments:
                centers (tuple or list of tuple) : coordinates of the center/s
                                                   of the octree on the boundary.
-               faces (int between 0 and 3 or list of int) : the face of the 
-                                                            current octree for 
-                                                            which we are
+               f_o_n (int between 0 and 3 or list of int) : the face or node of 
+                                                            the current octree 
+                                                            for which we are
                                                             interested
                                                             into knowing the 
                                                             neighbour's center.
@@ -267,13 +268,16 @@ class Laplacian2D(BaseClass2D.BaseClass2D):
 
         edges_or_nodes = []
         just_one_neighbour = False
-        for i in xrange(0, len(centers)):
-            # Evaluating boundary conditions for edges.
-            edges_or_nodes.append(1)
+        if (codim is None):
+            for i in xrange(0, len(centers)):
+                # Evaluating boundary conditions for edges.
+                edges_or_nodes.append(1)
+        else:
+            edges_or_nodes = codim
         # Centers neighbours.
         c_neighs = self.neighbour_centers(centers       ,
                                           edges_or_nodes,
-                                          faces)
+                                          f_o_n)
         # \"c_neighs\" is only a tuple, not a list.
         if not isinstance(c_neighs, list):
             just_one_neighbour = True
@@ -283,7 +287,7 @@ class Laplacian2D(BaseClass2D.BaseClass2D):
         x_s = [c_neigh[0] for c_neigh in c_neighs] 
         y_s = [c_neigh[1] for c_neigh in c_neighs]
 
-        boundary_values = ExactSolution2D.ExactSolution2D.solution(x_s, 
+        boundary_values = ExactSolution2D.ExactSolution2D.solution(numpy.multiply(2, x_s), 
                                                    		   y_s)
 
         msg = "Evaluated boundary conditions"
@@ -350,7 +354,8 @@ class Laplacian2D(BaseClass2D.BaseClass2D):
 
     # --------------------------------------------------------------------------
     # Set boundary conditions.
-    def set_b_c(self):
+    def set_b_c(self,
+                adj_matrix = None):
         """Method which set boundary conditions for the different grids."""
     
 	log_file = self.logger.handlers[0].baseFilename
@@ -360,6 +365,8 @@ class Laplacian2D(BaseClass2D.BaseClass2D):
         n_oct = self._n_oct
         octree = self._octree
         nfaces = octree.get_n_faces()
+        nnodes = octree.get_n_nodes()
+        face_node = octree.get_face_node()
         h = self._h
         h2 = h * h
         is_background = True
@@ -370,7 +377,8 @@ class Laplacian2D(BaseClass2D.BaseClass2D):
             is_background = False
 
         b_indices, b_values = ([] for i in range(0, 2))# Boundary indices/values
-        b_centers, b_faces = ([] for i in range(0, 2)) # Boundary centers/faces
+        b_centers, b_f_o_n = ([] for i in range(0, 2)) # Boundary centers/faces or nodes
+        b_codim = []
         for octant in xrange(0, n_oct):
             # Global index of the current local octant \"octant\".
             g_octant = o_ranges[0] + octant
@@ -380,16 +388,26 @@ class Laplacian2D(BaseClass2D.BaseClass2D):
                 py_oct = self._octree.get_octant(octant)
                 center  = self._octree.get_center(octant)[:2]
 
+                # Nodes yet seen.
+                n_y_s = set()
                 for face in xrange(0, nfaces):
                     # If we have an edge on the boundary.
                     if self._octree.get_bound(py_oct, 
                                               face):
                         b_indices.append(m_g_octant)
-                        b_faces.append(face)
+                        b_f_o_n.append(face)
                         b_centers.append(center)
+                        b_codim.append(1)
+                        n_y_s.update(face_node[face][0:2])
+                for node in n_y_s:
+                    b_indices.append(m_g_octant)
+                    b_f_o_n.append(node)
+                    b_centers.append(center)
+                    b_codim.append(2)
             
         (b_values, c_neighs) = self.eval_b_c(b_centers,
-                                             b_faces)
+                                             b_f_o_n  ,
+                                             b_codim)
         # Converting from numpy array to python list.
 	b_values = b_values.tolist()
 
@@ -409,18 +427,43 @@ class Laplacian2D(BaseClass2D.BaseClass2D):
                     # https://wiki.python.org/moin/DictionaryKeys
                     key = (grid        , # Grid (0 is for the background grid)
                            b_indices[i], # Masked global index of the octant
-                           b_faces[i]  , # Boundary face
+                           b_f_o_n[i]  , # Boundary face
+                           b_codim[i]  , # Boundary codimension
                            h)            # Edge's length
                     # We store the center of the cell on the boundary.
-                    self._edl.update({key : (center + ((-1,) * 7) if \
+                    self._edl.update({key : (center + ((-1,) * 26) if \
                                              self._p_inter else center)})
                     # The new corresponding value inside \"b_values\" would be
                     # \"0.0\", because the boundary value is given by the 
                     # coefficients of the bilinear operator in the \"extension\"
                     # matrix.
                     b_values[i] = 0.0
-	    
-        b_values[:] = [b_value * (-1.0 / h2) for b_value in b_values]
+	 
+        logger = self.logger
+        #b_values[:] = [b_value * (-1.0 / h2) for b_value in b_values]
+        #if not grid:
+        #    for i,value in enumerate(b_values):
+        #        if b_codim[i] == 2:
+        #            b_values[i] = 0
+        if (adj_matrix is not None):
+            for i, value in enumerate(b_values):
+                w_first = utilities.compute_w_first(logger, c_neighs[i], adj_matrix)
+                if b_codim[i] == 1:
+                    if (b_f_o_n[i]  == 0 or b_f_o_n[i] == 1):
+                        value_to_multiply = (1.0 / h2) * math.pow(w_first, 2) * (math.pow(adj_matrix[0][0], 2) + math.pow(adj_matrix[1][0], 2))
+                    else:
+                        value_to_multiply = (1.0 / h2) * math.pow(w_first, 2) * (math.pow(adj_matrix[0][1], 2) + math.pow(adj_matrix[1][1], 2))
+                else:
+                    if (b_f_o_n[i] == 0 or b_f_o_n[i] == 3):
+                        value_to_multiply = (2.0 / (4.0 * h2)) * math.pow(w_first, 2) * ((adj_matrix[0][0] * adj_matrix[0][1]) + 
+                                                                                               (adj_matrix[1][0] * adj_matrix[1][1]))
+                    else:
+                        value_to_multiply = (-2.0 / (4.0 * h2)) * math.pow(w_first, 2) * ((adj_matrix[0][0] * adj_matrix[0][1]) + 
+                                                                                                (adj_matrix[1][0] * adj_matrix[1][1]))
+                b_values[i] = b_values[i] * (-1.0 * value_to_multiply)
+        else:
+            b_values[:] = [b_value * (-1.0 / h2) for b_value in b_values]
+   
         insert_mode = PETSc.InsertMode.ADD_VALUES
         self._rhs.setValues(b_indices,
                             b_values ,
@@ -523,6 +566,8 @@ class Laplacian2D(BaseClass2D.BaseClass2D):
         n_oct = self._n_oct
         octree = self._octree
         nfaces = octree.get_n_faces()
+        nnodes = octree.get_n_nodes()
+        face_node = octree.get_face_node()
         h = self._h
         comm_l = self._comm
         rank_l = comm_l.Get_rank()
@@ -567,14 +612,14 @@ class Laplacian2D(BaseClass2D.BaseClass2D):
                        g_octant,
                        h)
                 if self._p_inter:
-                    key = key + (-1,)
+                    key = key + (-1, -1,)
                 # If the octant is covered by the foreground grids, we need
                 # to store info of the stencil it belongs to to push on the
                 # relative rows of the matrix, the right indices of the octants
                 # of the foreground grid owning the penalized one.
                 # TODO: 12 or 16 instead of 9 for grid not perfectly 
                 # superposed?
-                stencil = [-1] * 9
+                stencil = [-1] * 28
                 stencil[0] = g_octant
                 stencil[1], stencil[2] = center
                 self._edl.update({key : stencil})
@@ -586,12 +631,15 @@ class Laplacian2D(BaseClass2D.BaseClass2D):
             f_b_face = False
             # \"stencil\"'s index.
             s_i = 3
+            # Nodes yet seen.
+            n_y_s = set()
             for face in xrange(0, nfaces):
                 # Check to know if a neighbour of an octant is penalized.
                 is_n_penalized = False
                 # Not boundary face.
                 if not self._octree.get_bound(py_oct, 
                                               face):
+                    n_y_s.update(face_node[face][0:2])
                     (neighs, ghosts) = octree.find_neighbours(octant, 
                                                               face  , 
                                                               1     , 
@@ -631,8 +679,10 @@ class Laplacian2D(BaseClass2D.BaseClass2D):
                             stencil = self._edl.get(key)
                             stencil[s_i] = index
                             stencil[s_i + 1], stencil[s_i + 2] = n_center
+                            stencil[s_i + 3] = 1 # codim
+                            stencil[s_i + 4] = face 
                             self._edl[key] = stencil
-                            s_i += 3
+                            s_i += 5
                 else:
                     # Adding elements for the octants of the background to use
                     # to interpolate stencil values for boundary conditions of 
@@ -640,9 +690,60 @@ class Laplacian2D(BaseClass2D.BaseClass2D):
                     if not is_background:
                         if not f_b_face:
                             o_count += 4
+                            o_count += 2 # For the neighbours of node
                             f_b_face = True 
                         else:
                             o_count += 3
+                            o_count += 2 # For the neighbours of node
+            #----------------------------------------------------------------
+            for node in n_y_s:
+                is_n_penalized = False
+                (neighs, ghosts) = octree.find_neighbours(octant,
+                                                          node  ,
+                                                          2     ,
+                                                          neighs,
+                                                          ghosts)
+                # Empty lists in python are \"False\".
+                if (ghosts and neighs):
+                    if not ghosts[0]:
+                        index = octree.get_global_idx(neighs[0])
+                        n_center = self._octree.get_center(neighs[0])[:2]
+                    else:
+                        index = self._octree.get_ghost_global_idx(neighs[0])
+                        py_ghost_oct = self._octree.get_ghost_octant(neighs[0])
+                        n_center = self._octree.get_center(py_ghost_oct, 
+                                                         True)[:2]
+                    if is_background:
+                        # Is neighbour penalized.
+                        is_n_penalized = utilities.check_oct_into_squares(n_center,
+                                                      	                  p_bound ,
+                                                                          h       ,
+                                                                          0.0     ,
+                                              	                          logger  ,
+                                              	                          log_file)
+                    if not is_penalized:
+                        if is_n_penalized:
+                            # Being the neighbour penalized, it means that it 
+                            # will be substituted by 4 octant being part of 
+                            # the foreground grids, so being on the non diagonal
+                            # part of the grid.
+                            o_count += 4
+                        else:
+                            if ghosts[0]:
+                                o_count += 1
+                            else:
+                                d_count += 1
+                    else:
+                        if not is_n_penalized:
+                            stencil = self._edl.get(key)
+                            stencil[s_i] = index
+                            stencil[s_i + 1], stencil[s_i + 2] = n_center
+                            stencil[s_i + 3] = 2 # codim
+                            stencil[s_i + 4] = node 
+                            self._edl[key] = stencil
+                            s_i += 5
+            #----------------------------------------------------------------
+        
             if not is_penalized:
                 d_nnz.append(d_count)
                 o_nnz.append(o_count)
@@ -717,7 +818,8 @@ class Laplacian2D(BaseClass2D.BaseClass2D):
     # Initialize diagonal matrices of the block matrix.
     def init_mat(self,
                  (e_d_nnz, e_o_nnz),
-                 o_n_oct = 0):
+                 o_n_oct = 0,
+                 adj_matrix = None):
         """Method which initialize the diagonal parts of the monolithic matrix 
            of the system.
            
@@ -750,14 +852,18 @@ class Laplacian2D(BaseClass2D.BaseClass2D):
         (d_nnz, o_nnz) = (e_d_nnz, e_o_nnz)
         n_oct = self._n_oct
         nfaces = octree.get_n_faces()
+        nnodes = octree.get_n_nodes()
+        face_node = octree.get_face_node()
         sizes = self.find_sizes()
         self._b_mat = PETSc.Mat().createAIJ(size = (sizes, sizes),
                                             nnz = (d_nnz, o_nnz) ,
                                             comm = comm_w)
         # If an element is being allocated in a place not preallocate, then 
         # the program will stop.
+        #self._b_mat.setOption(self._b_mat.Option.NEW_NONZERO_ALLOCATION_ERR, 
+        #                      True)
         self._b_mat.setOption(self._b_mat.Option.NEW_NONZERO_ALLOCATION_ERR, 
-                              True)
+                              False)
         
         o_ranges = self.get_ranges()
         for octant in xrange(0, n_oct):
@@ -780,12 +886,22 @@ class Laplacian2D(BaseClass2D.BaseClass2D):
                                                   	        log_file)
             if not is_penalized:
                 indices.append(m_g_octant)
-                values.append((-4.0 / h2))
+                if adj_matrix == None:
+                    values.append((-4.0 / h2))
+                else:
+                    w_first = utilities.compute_w_first(logger, center, adj_matrix)
+                    value_to_append = (-2.0 / h2) * math.pow(w_first, 2) * (math.pow(adj_matrix[0][0], 2) + math.pow(adj_matrix[1][0], 2))
+                    value_to_append += (-2.0 / h2) * math.pow(w_first, 2) * (math.pow(adj_matrix[0][1], 2) + math.pow(adj_matrix[1][1], 2))
+                    values.append(value_to_append)
+                    #print(value_to_append)
 
+                # Nodes yet seen.
+                n_y_s = set()
                 for face in xrange(0, nfaces):
                     is_n_penalized = False
                     if not octree.get_bound(py_oct, 
                                             face):
+                        n_y_s.update(face_node[face][0:2])
                         (neighs, ghosts) = octree.find_neighbours(octant, 
                                                                   face  , 
                                                                   1     , 
@@ -815,7 +931,57 @@ class Laplacian2D(BaseClass2D.BaseClass2D):
                                                       	                      log_file)
                         if not is_n_penalized:
                             indices.append(m_index)
-                            values.append(1.0 / h2)
+                            if adj_matrix == None:
+                                values.append(1.0 / h2)
+                            else:
+                                #print((1.0 / h2) * math.pow(w_first, 2) * (math.pow(adj_matrix[0][0], 2) + math.pow(adj_matrix[1][0], 2)))
+                                w_first = utilities.compute_w_first(logger, n_center, adj_matrix)
+                                if (face  == 0 or face == 1):
+                                    values.append((1.0 / h2) * math.pow(w_first, 2) * (math.pow(adj_matrix[0][0], 2) + math.pow(adj_matrix[1][0], 2)))
+                                else:
+                                    values.append((1.0 / h2) * math.pow(w_first, 2) * (math.pow(adj_matrix[0][1], 2) + math.pow(adj_matrix[1][1], 2)))
+                if (adj_matrix is not None):
+                    for node in n_y_s:
+                        is_n_penalized = False
+                        (neighs, ghosts) = octree.find_neighbours(octant, 
+                                                                  node, 
+                                                                  2 , 
+                                                                  neighs, 
+                                                                  ghosts)
+                        # Empty lists in python are \"False\".
+                        if (ghosts and neighs):
+                            if not ghosts[0]:
+                                n_center = octree.get_center(neighs[0])[:2]
+                                index = neighs[0] + o_ranges[0]
+                                # Masked index.
+                                m_index = self.mask_octant(index)
+                            else:
+                                index = octree.get_ghost_global_idx(neighs[0])
+                                py_ghost_oct = octree.get_ghost_octant(neighs[0])
+                                n_center = octree.get_center(py_ghost_oct, 
+                                                         True)[:2]
+                                m_index = self.mask_octant(index)
+                                m_index = m_index + oct_offset
+                        
+                            if is_background:
+                                # Is neighbour penalized.
+                                is_n_penalized = utilities.check_oct_into_squares(n_center,
+                                                          	                  p_bound ,
+                                                                                  h       ,
+                                                                                  0.0     ,
+                                                          	                  logger  ,
+                                                          	                  log_file)
+                            if not is_n_penalized:
+                                indices.append(m_index)
+                                w_first = utilities.compute_w_first(logger, n_center, adj_matrix)
+                                #print((2.0 / (4.0 * h2)) * math.pow(w_first, 2) * ((adj_matrix[0][0] * adj_matrix[0][1]) + 
+                                #                                                               (adj_matrix[1][0] * adj_matrix[1][1])))
+                                if (node == 0 or node == 3):
+                                    values.append((2.0 / (4.0 * h2)) * math.pow(w_first, 2) * ((adj_matrix[0][0] * adj_matrix[0][1]) + 
+                                                                                               (adj_matrix[1][0] * adj_matrix[1][1])))
+                                else:
+                                    values.append((-2.0 / (4.0 * h2)) * math.pow(w_first, 2) * ((adj_matrix[0][0] * adj_matrix[0][1]) + 
+                                                                                                (adj_matrix[1][0] * adj_matrix[1][1])))
 
                 self._b_mat.setValues(m_g_octant, # Row
                                       indices   , # Columns
@@ -1102,27 +1268,27 @@ class Laplacian2D(BaseClass2D.BaseClass2D):
         # between grids of different levels.
         self._n_edg = None
         if not is_background:
-            self._d_type_s = numpy.dtype('(1, 4)f8, (1, 9)f8') if self._p_inter\
-                             else numpy.dtype('(1, 4)f8, (1, 2)f8')
-            blocks_length_s = [4, 9] if self._p_inter else [4, 2]
-            blocks_displacement_s = [0, 32]
+            self._d_type_s = numpy.dtype('(1, 5)f8, (1, 28)f8') if self._p_inter\
+                             else numpy.dtype('(1, 5)f8, (1, 2)f8')
+            blocks_length_s = [5, 28] if self._p_inter else [5, 2]
+            blocks_displacement_s = [0, 40]
             mpi_datatypes = [MPI.DOUBLE,
                              MPI.DOUBLE]
-            self._d_type_r = numpy.dtype('(1, 4)f8, (1, 9)f8') if self._p_inter\
-                             else numpy.dtype('(1, 3)f8, (1, 9)f8')
-            blocks_length_r = [4, 9] if self._p_inter else [3, 9]
-            blocks_displacement_r = [0, 32] if self._p_inter else [0, 24]
+            self._d_type_r = numpy.dtype('(1, 5)f8, (1, 28)f8') if self._p_inter\
+                             else numpy.dtype('(1, 3)f8, (1, 28)f8')
+            blocks_length_r = [5, 28] if self._p_inter else [3, 28]
+            blocks_displacement_r = [0, 40] if self._p_inter else [0, 24]
         else:
-            self._d_type_s = numpy.dtype('(1, 4)f8, (1, 9)f8') if self._p_inter\
-                             else numpy.dtype('(1, 3)f8, (1, 9)f8')
-            blocks_length_s = [4, 9] if self._p_inter else [3, 9]
-            blocks_displacement_s = [0, 32] if self._p_inter else [0, 24]
+            self._d_type_s = numpy.dtype('(1, 5)f8, (1, 28)f8') if self._p_inter\
+                             else numpy.dtype('(1, 3)f8, (1, 28)f8')
+            blocks_length_s = [5, 28] if self._p_inter else [3, 28]
+            blocks_displacement_s = [0, 40] if self._p_inter else [0, 24]
             mpi_datatypes = [MPI.DOUBLE,
                              MPI.DOUBLE]
-            self._d_type_r = numpy.dtype('(1, 4)f8, (1, 9)f8') if self._p_inter\
-                             else numpy.dtype('(1, 4)f8, (1,2)f8')
-            blocks_length_r = [4, 9] if self._p_inter else [4, 2]
-            blocks_displacement_r = [0, 32]
+            self._d_type_r = numpy.dtype('(1, 5)f8, (1, 28)f8') if self._p_inter\
+                             else numpy.dtype('(1, 5)f8, (1,2)f8')
+            blocks_length_r = [5, 28] if self._p_inter else [5, 2]
+            blocks_displacement_r = [0, 40]
         # MPI data type to send.
         self._mpi_d_t_s = MPI.Datatype.Create_struct(blocks_length_s      ,
                                                      blocks_displacement_s,
@@ -1143,7 +1309,8 @@ class Laplacian2D(BaseClass2D.BaseClass2D):
     # Creating the restriction and prolongation blocks inside the monolithic 
     # matrix of the system.
     def update_values(self, 
-                      intercomm_dictionary = {}):
+                      intercomm_dictionary = {},
+                      adj_matrix = None):
         """Method wich update the system matrix.
 
            Arguments:
@@ -1224,10 +1391,12 @@ class Laplacian2D(BaseClass2D.BaseClass2D):
             mpi_request.Wait(status)
         if not is_background:
             self.update_fg_grids(o_ranges,
-                                 ids_octree_contained)
+                                 ids_octree_contained,
+                                 adj_matrix)
         else:
             self.update_bg_grids(o_ranges,
-                                 ids_octree_contained)
+                                 ids_octree_contained,
+                                 adj_matrix)
         
         self.assembly_petsc_struct("matrix",
                                    PETSc.Mat.AssemblyType.FINAL_ASSEMBLY)
@@ -1243,7 +1412,8 @@ class Laplacian2D(BaseClass2D.BaseClass2D):
     # Sub_method of \"update_values\".
     def update_fg_grids(self    ,
                         o_ranges,
-                        ids_octree_contained):
+                        ids_octree_contained,
+                        adj_matrix = None):
         """Method which update the non diagonal blocks relative to the 
            foreground grids.
 
@@ -1293,6 +1463,7 @@ class Laplacian2D(BaseClass2D.BaseClass2D):
         # \"idxs[0]\" because is a numpy array, so to select the array we have
         # to use the index notation.
         for idx in idxs[0]:
+            #print(keys[idx])
             center_cell_container = octree.get_center(local_idxs[idx])[:2]
             location = utilities.points_location(centers[idx],
                                                  center_cell_container)
@@ -1304,20 +1475,49 @@ class Laplacian2D(BaseClass2D.BaseClass2D):
             bil_coeffs = utilities.bil_coeffs(centers[idx],
                                               neigh_centers)
 
-            bil_coeffs = [coeff * (1.0 / h2s[idx]) for coeff in bil_coeffs]
+            if adj_matrix is not None:
+                for i in range(6, len(stencils[idx]), 5):
+                    b_codim = int(stencils[idx][i])
+                    f_o_n = int(stencils[idx][i + 1])
+                    row_index = int(stencils[idx][i - 3])
+                    #print(stencils[idx])
+                    h2 = h2s[idx]
+                    w_first = utilities.compute_w_first(self.logger, centers[idx][0:2], adj_matrix)
+                    if b_codim == 1:
+                        #value_to_multiply = (1.0 / h2s[idx])
+                        if (f_o_n == 0 or f_o_n == 1):
+                            value_to_multiply = (1.0 / h2) * math.pow(w_first, 2) * (math.pow(adj_matrix[0][0], 2) + math.pow(adj_matrix[1][0], 2))
+                        else:
+                            value_to_multiply = (1.0 / h2) * math.pow(w_first, 2) * (math.pow(adj_matrix[0][1], 2) + math.pow(adj_matrix[1][1], 2))
+                    elif b_codim == 2:
+                        if (f_o_n == 0 or f_o_n == 3):
+                            value_to_multiply = (2.0 / (4.0 * h2)) * math.pow(w_first, 2) * ((adj_matrix[0][0] * adj_matrix[0][1]) + 
+                                                                                             (adj_matrix[1][0] * adj_matrix[1][1]))
+                        else:
+                            value_to_multiply = (-2.0 / (4.0 * h2)) * math.pow(w_first, 2) * ((adj_matrix[0][0] * adj_matrix[0][1]) + 
+                                                                                              (adj_matrix[1][0] * adj_matrix[1][1]))
+                    elif b_codim ==  -1:
+                        break
+                    new_bil_coeffs = [coeff * value_to_multiply for coeff in bil_coeffs]
+                    self.apply_rest_prol_ops(row_index  ,
+                                             neigh_indices,
+                                             new_bil_coeffs   ,
+                                             neigh_centers)
+            else:
+                bil_coeffs = [coeff * (1.0 / h2s[idx]) for coeff in bil_coeffs]
 
-            row_indices = [int(octant) for octant in stencils[idx][3::3]]
+                row_indices = [int(octant) for octant in stencils[idx][3::5]]
 
-            l_start = time.time()
-            self.apply_rest_prol_ops(row_indices  ,
-                                     neigh_indices,
-                                     bil_coeffs   ,
-                                     neigh_centers)
-            l_end = time.time()
-            time_rest_prol += (l_end - l_start)
-        end = time.time()
-        print("fg prolungation restriction " + str(time_rest_prol))
-        print("fg update " + str(end - start))
+                l_start = time.time()
+                self.apply_rest_prol_ops(row_indices  ,
+                                         neigh_indices,
+                                         bil_coeffs   ,
+                                         neigh_centers)
+                l_end = time.time()
+                time_rest_prol += (l_end - l_start)
+                end = time.time()
+                print("fg prolungation restriction " + str(time_rest_prol))
+                print("fg update " + str(end - start))
 
         msg = "Updated prolongation blocks"
         self.log_msg(msg   ,
@@ -1328,7 +1528,8 @@ class Laplacian2D(BaseClass2D.BaseClass2D):
     # Sub_method of \"update_values\".
     def update_bg_grids(self    ,
                         o_ranges,
-                        ids_octree_contained):
+                        ids_octree_contained,
+                        adj_matrix = None):
         """Method which update the non diagonal blocks relative to the 
            backgrounds grids.
 
@@ -1351,7 +1552,7 @@ class Laplacian2D(BaseClass2D.BaseClass2D):
         l_s = list_edg[0][1].size
         keys = numpy.array([list_edg[i][0] for i in 
                             range(0, l_l_edg)]).reshape(l_l_edg, l_k)
-        h2s = keys[:, 3] * keys[:, 3]
+        h2s = keys[:, 4] * keys[:, 4]
         centers = numpy.array([list_edg[i][1] for i in 
                                range(0, l_l_edg)]).reshape(l_l_edg, l_s)
         #TODO: understand why here we need to pass \"center[0:2]\" to the 
@@ -1379,7 +1580,8 @@ class Laplacian2D(BaseClass2D.BaseClass2D):
                                                           local_idxs[idx],
                                                           o_ranges[0]    ,
                                                           True           ,
-                                                          int(keys[idx][2]))
+                                                          int(keys[idx][2]),
+                                                          int(keys[idx][3]))
             bil_coeffs = utilities.bil_coeffs(centers[idx],
                                               neigh_centers)
             for i, index in enumerate(neigh_indices):
@@ -1388,7 +1590,27 @@ class Laplacian2D(BaseClass2D.BaseClass2D):
                     n_n_i.append(masked_index)
                 else:
                     n_n_i.append(index)
-            bil_coeffs = [coeff * (1.0 / h2s[idx]) for coeff in bil_coeffs]
+            if adj_matrix is not None:
+                b_codim = int(keys[idx][3])
+                f_o_n = int(keys[idx][2])
+                h2 = h2s[idx]
+                w_first = utilities.compute_w_first(self.logger, centers[idx][0:2], adj_matrix)
+                if b_codim == 1:
+                    if (f_o_n == 0 or f_o_n == 1):
+                        value_to_multiply = (1.0 / h2) * math.pow(w_first, 2) * (math.pow(adj_matrix[0][0], 2) + math.pow(adj_matrix[1][0], 2))
+                    else:
+                        value_to_multiply = (1.0 / h2) * math.pow(w_first, 2) * (math.pow(adj_matrix[0][1], 2) + math.pow(adj_matrix[1][1], 2))
+                else:
+                    if (f_o_n == 0 or f_o_n == 3):
+                        value_to_multiply = (2.0 / (4.0 * h2)) * math.pow(w_first, 2) * ((adj_matrix[0][0] * adj_matrix[0][1]) + 
+                                                                                         (adj_matrix[1][0] * adj_matrix[1][1]))
+                    else:
+                        value_to_multiply = (-2.0 / (4.0 * h2)) * math.pow(w_first, 2) * ((adj_matrix[0][0] * adj_matrix[0][1]) + 
+                                                                                          (adj_matrix[1][0] * adj_matrix[1][1]))
+                #print(1.0/h2s[idx])
+                bil_coeffs = [coeff * value_to_multiply for coeff in bil_coeffs]
+            else:
+                bil_coeffs = [coeff * (1.0 / h2s[idx]) for coeff in bil_coeffs]
             l_start = time.time()
             self.apply_rest_prol_ops(int(keys[idx][1]),
                                      n_n_i            ,
@@ -1412,7 +1634,8 @@ class Laplacian2D(BaseClass2D.BaseClass2D):
                               current_octant       ,
                               start_octant         ,
                               is_background = False,
-                              boundary_face = -1):
+                              boundary_face = -1   ,
+                              codim = None):
         """Method which compute the right 4 neighbours for the octant 
            \"current_octant\", considering first the label \"location\" to
            indicate in what directions go to choose the neighborhood.
@@ -1448,12 +1671,12 @@ class Laplacian2D(BaseClass2D.BaseClass2D):
         if location == "nordovest":
             # Adding 1) the number of node, 2) (codim, number of face/node).
             if is_background:
-                if boundary_face == 2:
+                if ((boundary_face == 2) or (codim == 2)):
                     ordered_points.update({0 : (2, 0)})
                     ordered_points.update({1 : (1, 2)})
                     ordered_points.update({2 : (1, 0)})
                     ordered_points.update({3 : None})
-                elif boundary_face == 1:
+                elif ((boundary_face == 1)):
                     ordered_points.update({0 : None})
                     ordered_points.update({1 : (1, 1)})
                     ordered_points.update({2 : (1, 3)})
@@ -1472,12 +1695,12 @@ class Laplacian2D(BaseClass2D.BaseClass2D):
                 ordered_points.update({3 : (1, 3)})
         elif location == "nordest":
             if is_background:
-                if boundary_face == 2:
+                if ((boundary_face == 2) or (codim == 2)):
                     ordered_points.update({0 : (1, 2)})
                     ordered_points.update({1 : (2, 1)})
                     ordered_points.update({2 : None})
                     ordered_points.update({3 : (1, 1)})
-                elif boundary_face == 0:
+                elif ((boundary_face == 0)):
                     ordered_points.update({0 : (1, 0)})
                     ordered_points.update({1 : None})
                     ordered_points.update({2 : (2, 2)})
@@ -1496,12 +1719,12 @@ class Laplacian2D(BaseClass2D.BaseClass2D):
                 ordered_points.update({3 : (2, 3)})
         elif location == "sudovest":
             if is_background:
-                if boundary_face == 1:
+                if ((boundary_face == 1) or (codim == 2)):
                     ordered_points.update({0 : (1, 2)})
                     ordered_points.update({1 : (2, 1)})
                     ordered_points.update({2 : None})
                     ordered_points.update({3 : (1, 1)})
-                elif boundary_face == 3:
+                elif ((boundary_face == 3)):
                     ordered_points.update({0 : (1, 0)})
                     ordered_points.update({1 : None})
                     ordered_points.update({2 : (2, 2)})
@@ -1520,7 +1743,7 @@ class Laplacian2D(BaseClass2D.BaseClass2D):
                 ordered_points.update({3 : None})
         elif location == "sudest":
             if is_background:
-                if boundary_face == 0:
+                if ((boundary_face == 0) or (codim == 2)):
                     ordered_points.update({0 : (2, 0)})
                     ordered_points.update({1 : (1, 2)})
                     ordered_points.update({2 : (1, 0)})
@@ -1637,7 +1860,7 @@ class Laplacian2D(BaseClass2D.BaseClass2D):
             # solution is evaluated.
             if index == "outside_bg":
                 to_rhs.append(i)
-                e_sol = ExactSolution2D.ExactSolution2D.solution(centers[i][0],
+                e_sol = ExactSolution2D.ExactSolution2D.solution(2*centers[i][0],
                                                                  centers[i][1])
                 e_sols.append(e_sol)
 

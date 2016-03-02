@@ -319,6 +319,10 @@ def compute_transf_geometry(comm_dictionary     ,
                             logger              ,
                             proc_grid           ,
                             centers):
+    laplacian = Laplacian2D.Laplacian2D(comm_dictionary)
+    exact_solution = ExactSolution2D.ExactSolution2D(comm_dictionary)
+    (d_nnz, o_nnz) = laplacian.create_mask()
+    laplacian.init_sol()
     # Original points.
     or_points = [anchors[proc_grid][0], anchors[proc_grid][1], anchors[proc_grid][2],
                  anchors[proc_grid][0] + edges[proc_grid], anchors[proc_grid][1], anchors[proc_grid][2],
@@ -329,15 +333,63 @@ def compute_transf_geometry(comm_dictionary     ,
                                                logger   ,
                                                or_points,
                                                t_points[proc_grid])
+    trans_coeff_adj = utilities.persp_trans_coeffs_adj(2,
+                                                       logger,
+                                                       trans_coeff)
 
+    laplacian.init_mat((d_nnz, o_nnz), o_n_oct = 0, adj_matrix = trans_coeff_adj)
+    not_penalized_centers = laplacian.not_pen_centers
+    not_penalized_x = numpy.asarray([center[0] for center in \
+                                     not_penalized_centers])
+    not_penalized_y = numpy.asarray([center[1] for center in \
+                                     not_penalized_centers])
     # New centers.
-    n_centers = [utilities.apply_persp_trans(center, trans_coeff, logger) for center in centers]
+    n_centers = [utilities.apply_persp_trans(center, trans_coeff, logger) for center in not_penalized_centers]
+    print("proc " + str(comm_w.Get_rank()) + " " + str(trans_coeff_adj))
+    print("proc " + str(comm_w.Get_rank()) + " " + str(trans_coeff))
     n_n_centers = numpy.array(n_centers)
-    exact_solution = ExactSolution2D.ExactSolution2D(comm_dictionary)
     exact_solution.e_sol(n_n_centers[:, 0], 
                          n_n_centers[:, 1],
                          n_n_centers[:, 2] if (dimension == 3) else None)
-    data_to_save = numpy.array([exact_solution.sol])
+    exact_solution.e_s_der(not_penalized_x, 
+                           not_penalized_y)
+    exact_solution.e_m_s_der(not_penalized_x,
+                             not_penalized_y)
+    exact_solution.e_s_der_x(not_penalized_x,
+                             not_penalized_y)
+    exact_solution.e_s_der_y(not_penalized_x,
+                             not_penalized_y)
+
+
+    n_w_first = utilities.numpy_compute_w_first(n_n_centers[:, 0], n_n_centers[:, 1], trans_coeff_adj)
+
+    to_init_rhs_01 = numpy.add(numpy.multiply(exact_solution.s_der_x, numpy.multiply(numpy.power(n_w_first,2), numpy.power(trans_coeff_adj[0][0], 2) + 
+                                                                                                            numpy.power(trans_coeff_adj[1][0], 2))), 
+                            numpy.multiply(exact_solution.s_der_y, numpy.multiply(numpy.power(n_w_first,2), numpy.power(trans_coeff_adj[0][1], 2) + 
+                                                                                                            numpy.power(trans_coeff_adj[1][1], 2))))
+    to_init_rhs_02 = numpy.multiply(2, numpy.multiply(exact_solution.m_s_der, numpy.multiply(numpy.power(n_w_first, 2),
+                                                                                             trans_coeff_adj[0][0] * trans_coeff_adj[0][1] + 
+                                                                                             trans_coeff_adj[1][0] * trans_coeff_adj[1][1])))
+    to_init_rhs = to_init_rhs_01 + to_init_rhs_02
+
+    #print(to_init_rhs - exact_solution.s_der)
+
+    laplacian.init_rhs(to_init_rhs)
+    #laplacian.init_rhs(exact_solution.s_der)
+    laplacian.set_b_c(adj_matrix = trans_coeff_adj)
+    laplacian.update_values(intercomm_dictionary, adj_matrix = trans_coeff_adj)
+    laplacian.solve()
+    (norm_inf, norm_L2) = laplacian.evaluate_norms(exact_solution.sol,
+                                                   laplacian.sol.getArray())
+    print("process " + str(comm_w.Get_rank()) + " " + str((norm_inf, norm_L2)))
+    interpolate_sol = laplacian.interpolate_solution()
+    n_centers = [utilities.apply_persp_trans(center, trans_coeff, logger) for center in centers]
+    n_n_centers = numpy.array(n_centers)
+    exact_solution.e_sol(n_n_centers[:, 0], 
+                         n_n_centers[:, 1],
+                         n_n_centers[:, 2] if (dimension == 3) else None)
+    data_to_save = numpy.array([exact_solution.sol,
+                                interpolate_sol.getArray()])
 
     return (data_to_save, trans_coeff)
     
@@ -478,11 +530,11 @@ def main():
                                                                  #  pow(2,dim))
     vtk.apply_trans(geo_nodes, ghost_geo_nodes) 
     ## Add data to "vtk" object to be written later.
-    #vtk.add_data("evaluated", # Data
-    #             1          , # Data dim
-    #             "Float64"  , # Data type
-    #             "Cell"     , # Cell or Point
-    #             "ascii")     # File type
+    vtk.add_data("evaluated", # Data
+                 1          , # Data dim
+                 "Float64"  , # Data type
+                 "Cell"     , # Cell or Point
+                 "ascii")     # File type
     vtk.add_data("exact"  , 
                  1        , 
                  "Float64", 
