@@ -287,7 +287,7 @@ class Laplacian2D(BaseClass2D.BaseClass2D):
         x_s = [c_neigh[0] for c_neigh in c_neighs] 
         y_s = [c_neigh[1] for c_neigh in c_neighs]
 
-        boundary_values = ExactSolution2D.ExactSolution2D.solution(numpy.multiply(2, x_s), 
+        boundary_values = ExactSolution2D.ExactSolution2D.solution(x_s, 
                                                    		   y_s)
 
         msg = "Evaluated boundary conditions"
@@ -355,7 +355,8 @@ class Laplacian2D(BaseClass2D.BaseClass2D):
     # --------------------------------------------------------------------------
     # Set boundary conditions.
     def set_b_c(self,
-                adj_matrix = None):
+                adj_matrix = None,
+                matrix = None):
         """Method which set boundary conditions for the different grids."""
     
 	log_file = self.logger.handlers[0].baseFilename
@@ -410,6 +411,11 @@ class Laplacian2D(BaseClass2D.BaseClass2D):
                                              b_codim)
         # Converting from numpy array to python list.
 	b_values = b_values.tolist()
+
+        if grid == 1:
+            for i,v in enumerate(b_values):
+                b_values[i] = 0.0
+
 
         # Grids not of the background: equal to number >= 1.
         if grid:
@@ -546,7 +552,8 @@ class Laplacian2D(BaseClass2D.BaseClass2D):
     # moment, this last count is exact for the background grid but for the 
     # foreground ones it consider the worst case (for the two levels gap).
     def create_mask(self, 
-                    o_n_oct = 0):
+                    o_n_oct = 0,
+                    matrix = None):
         """Method which creates the new octants' numerations and initialize non
            zero elements' number for row in the matrix of the system.
            
@@ -678,7 +685,10 @@ class Laplacian2D(BaseClass2D.BaseClass2D):
                         if not is_n_penalized:
                             stencil = self._edl.get(key)
                             stencil[s_i] = index
-                            stencil[s_i + 1], stencil[s_i + 2] = n_center
+                            if matrix == None:
+                                stencil[s_i + 1], stencil[s_i + 2] = n_center
+                            else:
+                                stencil[s_i + 1], stencil[s_i + 2] = utilities.apply_persp_trans(n_center, matrix, logger)[0:2]
                             stencil[s_i + 3] = 1 # codim
                             stencil[s_i + 4] = face 
                             self._edl[key] = stencil
@@ -737,7 +747,10 @@ class Laplacian2D(BaseClass2D.BaseClass2D):
                         if not is_n_penalized:
                             stencil = self._edl.get(key)
                             stencil[s_i] = index
-                            stencil[s_i + 1], stencil[s_i + 2] = n_center
+                            if matrix == None:
+                                stencil[s_i + 1], stencil[s_i + 2] = n_center
+                            else:
+                                stencil[s_i + 1], stencil[s_i + 2] = utilities.apply_persp_trans(n_center, matrix, logger)[0:2]
                             stencil[s_i + 3] = 2 # codim
                             stencil[s_i + 4] = node 
                             self._edl[key] = stencil
@@ -983,6 +996,12 @@ class Laplacian2D(BaseClass2D.BaseClass2D):
                                     values.append((-2.0 / (4.0 * h2)) * math.pow(w_first, 2) * ((adj_matrix[0][0] * adj_matrix[0][1]) + 
                                                                                                 (adj_matrix[1][0] * adj_matrix[1][1])))
 
+                if not is_background:
+                    for i,v in enumerate(values):
+                        if i == 0:
+                            values[i] = 1.0
+                        else:
+                            values[i] = 0.0
                 self._b_mat.setValues(m_g_octant, # Row
                                       indices   , # Columns
                                       values)     # Values to be inserted
@@ -1310,7 +1329,8 @@ class Laplacian2D(BaseClass2D.BaseClass2D):
     # matrix of the system.
     def update_values(self, 
                       intercomm_dictionary = {},
-                      adj_matrix = None):
+                      adj_matrix = None,
+                      matrix = None):
         """Method wich update the system matrix.
 
            Arguments:
@@ -1392,7 +1412,8 @@ class Laplacian2D(BaseClass2D.BaseClass2D):
         if not is_background:
             self.update_fg_grids(o_ranges,
                                  ids_octree_contained,
-                                 adj_matrix)
+                                 adj_matrix,
+                                 matrix)
         else:
             self.update_bg_grids(o_ranges,
                                  ids_octree_contained,
@@ -1413,7 +1434,8 @@ class Laplacian2D(BaseClass2D.BaseClass2D):
     def update_fg_grids(self    ,
                         o_ranges,
                         ids_octree_contained,
-                        adj_matrix = None):
+                        adj_matrix = None,
+                        matrix = None):
         """Method which update the non diagonal blocks relative to the 
            foreground grids.
 
@@ -1445,7 +1467,7 @@ class Laplacian2D(BaseClass2D.BaseClass2D):
                                 # TODO: 12 or 16 instead of 9 for grid not
                                 # perfectly superposed??
                                 range(0, l_l_edg)]).reshape(l_l_edg, l_s)
-        centers = [(stencils[i][1], stencils[i][2], 0) for i in range(0, l_l_edg)]
+        centers = [(stencils[i][1]/2.0 + 0.125, stencils[i][2], 0) for i in range(0, l_l_edg)]
         # Vectorized functions are just syntactic sugar:
         # http://stackoverflow.com/questions/7701429/efficient-evaluation-of-a-function-at-every-cell-of-a-numpy-array
         # http://stackoverflow.com/questions/8079061/function-application-over-numpys-matrix-row-column
@@ -1465,17 +1487,19 @@ class Laplacian2D(BaseClass2D.BaseClass2D):
         for idx in idxs[0]:
             #print(keys[idx])
             center_cell_container = octree.get_center(local_idxs[idx])[:2]
-            location = utilities.points_location(centers[idx],
+            location = utilities.points_location(centers[idx][0:2], 
                                                  center_cell_container)
             neigh_centers, neigh_indices = ([] for i in range(0, 2)) 
             (neigh_centers, 
              neigh_indices)  = self.find_right_neighbours(location       ,
                                                           local_idxs[idx],
                                                           o_ranges[0])
-            bil_coeffs = utilities.bil_coeffs(centers[idx],
+            #neigh_centers = [tuple(utilities.apply_persp_trans(center, matrix, self.logger)[0:2]) for center in neigh_centers]
+            bil_coeffs = utilities.bil_coeffs(centers[idx][0:2],
                                               neigh_centers)
 
             if adj_matrix is not None:
+                #print(stencils[idx])
                 for i in range(6, len(stencils[idx]), 5):
                     b_codim = int(stencils[idx][i])
                     f_o_n = int(stencils[idx][i + 1])
@@ -1483,12 +1507,15 @@ class Laplacian2D(BaseClass2D.BaseClass2D):
                     #print(stencils[idx])
                     h2 = h2s[idx]
                     w_first = utilities.compute_w_first(self.logger, centers[idx][0:2], adj_matrix)
+                    #print(w_first)
                     if b_codim == 1:
+                        #print(centers[idx])
                         #value_to_multiply = (1.0 / h2s[idx])
                         if (f_o_n == 0 or f_o_n == 1):
                             value_to_multiply = (1.0 / h2) * math.pow(w_first, 2) * (math.pow(adj_matrix[0][0], 2) + math.pow(adj_matrix[1][0], 2))
                         else:
                             value_to_multiply = (1.0 / h2) * math.pow(w_first, 2) * (math.pow(adj_matrix[0][1], 2) + math.pow(adj_matrix[1][1], 2))
+                        value_to_multiply = (1.0/h2)
                     elif b_codim == 2:
                         if (f_o_n == 0 or f_o_n == 3):
                             value_to_multiply = (2.0 / (4.0 * h2)) * math.pow(w_first, 2) * ((adj_matrix[0][0] * adj_matrix[0][1]) + 
@@ -1499,6 +1526,10 @@ class Laplacian2D(BaseClass2D.BaseClass2D):
                     elif b_codim ==  -1:
                         break
                     new_bil_coeffs = [coeff * value_to_multiply for coeff in bil_coeffs]
+                    #for i,v in enumerate(neigh_indices):
+                    #    neigh_indices[i] = neigh_indices[i] - 4
+                    #print(neigh_indices)
+                    #print("multiply " + str(value_to_multiply))
                     self.apply_rest_prol_ops(row_index  ,
                                              neigh_indices,
                                              new_bil_coeffs   ,
@@ -1582,6 +1613,7 @@ class Laplacian2D(BaseClass2D.BaseClass2D):
                                                           True           ,
                                                           int(keys[idx][2]),
                                                           int(keys[idx][3]))
+
             bil_coeffs = utilities.bil_coeffs(centers[idx],
                                               neigh_centers)
             for i, index in enumerate(neigh_indices):
@@ -1612,10 +1644,10 @@ class Laplacian2D(BaseClass2D.BaseClass2D):
             else:
                 bil_coeffs = [coeff * (1.0 / h2s[idx]) for coeff in bil_coeffs]
             l_start = time.time()
-            self.apply_rest_prol_ops(int(keys[idx][1]),
-                                     n_n_i            ,
-                                     bil_coeffs       ,
-                                     neigh_centers)
+            #self.apply_rest_prol_ops(int(keys[idx][1]),
+            #                         n_n_i            ,
+            #                         bil_coeffs       ,
+            #                         neigh_centers)
             l_end = time.time()
             time_rest_prol += (l_end - l_start)
         end = time.time()
@@ -1860,7 +1892,7 @@ class Laplacian2D(BaseClass2D.BaseClass2D):
             # solution is evaluated.
             if index == "outside_bg":
                 to_rhs.append(i)
-                e_sol = ExactSolution2D.ExactSolution2D.solution(2*centers[i][0],
+                e_sol = ExactSolution2D.ExactSolution2D.solution(centers[i][0],
                                                                  centers[i][1])
                 e_sols.append(e_sol)
 
@@ -1944,7 +1976,7 @@ class Laplacian2D(BaseClass2D.BaseClass2D):
 
     @property
     def mat(self):
-        return self._mat
+        return self._b_mat
 
     @property
     def rhs(self):

@@ -321,8 +321,6 @@ def compute_transf_geometry(comm_dictionary     ,
                             centers):
     laplacian = Laplacian2D.Laplacian2D(comm_dictionary)
     exact_solution = ExactSolution2D.ExactSolution2D(comm_dictionary)
-    (d_nnz, o_nnz) = laplacian.create_mask()
-    laplacian.init_sol()
     # Original points.
     or_points = [anchors[proc_grid][0], anchors[proc_grid][1], anchors[proc_grid][2],
                  anchors[proc_grid][0] + edges[proc_grid], anchors[proc_grid][1], anchors[proc_grid][2],
@@ -336,6 +334,9 @@ def compute_transf_geometry(comm_dictionary     ,
     trans_coeff_adj = utilities.persp_trans_coeffs_adj(2,
                                                        logger,
                                                        trans_coeff)
+    
+    (d_nnz, o_nnz) = laplacian.create_mask(o_n_oct = 0, matrix = trans_coeff)
+    laplacian.init_sol()
 
     laplacian.init_mat((d_nnz, o_nnz), o_n_oct = 0, adj_matrix = trans_coeff_adj)
     not_penalized_centers = laplacian.not_pen_centers
@@ -351,6 +352,8 @@ def compute_transf_geometry(comm_dictionary     ,
     exact_solution.e_sol(n_n_centers[:, 0], 
                          n_n_centers[:, 1],
                          n_n_centers[:, 2] if (dimension == 3) else None)
+    #exact_solution.e_sol(not_penalized_x, 
+    #                       not_penalized_y)
     exact_solution.e_s_der(not_penalized_x, 
                            not_penalized_y)
     exact_solution.e_m_s_der(not_penalized_x,
@@ -372,12 +375,16 @@ def compute_transf_geometry(comm_dictionary     ,
                                                                                              trans_coeff_adj[1][0] * trans_coeff_adj[1][1])))
     to_init_rhs = to_init_rhs_01 + to_init_rhs_02
 
-    #print(to_init_rhs - exact_solution.s_der)
-
-    laplacian.init_rhs(to_init_rhs)
+    #if proc_grid == 0:
+    #    print(to_init_rhs - exact_solution.s_der)
+    if proc_grid == 1:
+        laplacian.init_rhs(exact_solution.sol)
+    else:
+        laplacian.init_rhs(to_init_rhs)
     #laplacian.init_rhs(exact_solution.s_der)
-    laplacian.set_b_c(adj_matrix = trans_coeff_adj)
-    laplacian.update_values(intercomm_dictionary, adj_matrix = trans_coeff_adj)
+    #print(laplacian.rhs.view())
+    laplacian.set_b_c(adj_matrix = trans_coeff_adj, matrix = trans_coeff)
+    laplacian.update_values(intercomm_dictionary, adj_matrix = trans_coeff_adj, matrix = trans_coeff)
     laplacian.solve()
     (norm_inf, norm_L2) = laplacian.evaluate_norms(exact_solution.sol,
                                                    laplacian.sol.getArray())
@@ -390,6 +397,8 @@ def compute_transf_geometry(comm_dictionary     ,
                          n_n_centers[:, 2] if (dimension == 3) else None)
     data_to_save = numpy.array([exact_solution.sol,
                                 interpolate_sol.getArray()])
+
+    #print(laplacian.mat.view())
 
     return (data_to_save, trans_coeff)
     

@@ -484,7 +484,7 @@ def persp_trans_coeffs_adj(dim   ,
         assert (2 <= dim <= 3), "Wrong dimension passed as first parameter."
 
         if (dim == 2):
-            print(A[1][1])
+            #print(A[1][1])
             ad_matrix = numpy.array([[(A[1][1] * A[2][2]) - (A[1][2] * A[2][1]),
                                       (A[0][2] * A[2][1]) - (A[0][1] * A[2][2]),
                                       (A[0][1] * A[1][2]) - (A[0][2] * A[1][1]),
@@ -562,12 +562,12 @@ def compute_w_first(logger,
         assert (2 <= dim <= 3), "Wrong size for the array passed as point."
         if (dim == 2):
             xy = point
-            w_first = 1 / ((ad_matrix[0][2] * xy[0]) + \
+            w_first = 1.0 / ((ad_matrix[0][2] * xy[0]) + \
                            (ad_matrix[1][2] * xy[1]) + \
                            ad_matrix[2][2])
         else:
             xyz = point
-            w_first = 1 / ((ad_matrix[0][3] * xyz[0]) + \
+            w_first = 1.0 / ((ad_matrix[0][3] * xyz[0]) + \
                            (ad_matrix[1][3] * xyz[1]) + \
                            (ad_matrix[2][3] * xyz[2]) + \
                            ad_matrix[3][3])
