@@ -1467,7 +1467,10 @@ class Laplacian2D(BaseClass2D.BaseClass2D):
                                 # TODO: 12 or 16 instead of 9 for grid not
                                 # perfectly superposed??
                                 range(0, l_l_edg)]).reshape(l_l_edg, l_s)
-        centers = [(stencils[i][1]/2.0 + 0.125, stencils[i][2], 0) for i in range(0, l_l_edg)]
+        centers = [(stencils[i][1], stencils[i][2], 0) for i in range(0, l_l_edg)]
+        centers = [utilities.apply_persp_trans_inv(self.logger, center[0:2], adj_matrix) for center in centers]
+        for i,v in enumerate(centers):
+            centers[i].append(0)
         # Vectorized functions are just syntactic sugar:
         # http://stackoverflow.com/questions/7701429/efficient-evaluation-of-a-function-at-every-cell-of-a-numpy-array
         # http://stackoverflow.com/questions/8079061/function-application-over-numpys-matrix-row-column
