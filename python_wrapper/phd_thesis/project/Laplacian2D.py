@@ -412,7 +412,7 @@ class Laplacian2D(BaseClass2D.BaseClass2D):
         # Converting from numpy array to python list.
 	b_values = b_values.tolist()
 
-        if grid == 1:
+        if grid == 0:
             for i,v in enumerate(b_values):
                 b_values[i] = 0.0
 
@@ -996,7 +996,7 @@ class Laplacian2D(BaseClass2D.BaseClass2D):
                                     values.append((-2.0 / (4.0 * h2)) * math.pow(w_first, 2) * ((adj_matrix[0][0] * adj_matrix[0][1]) + 
                                                                                                 (adj_matrix[1][0] * adj_matrix[1][1])))
 
-                if not is_background:
+                if is_background:
                     for i,v in enumerate(values):
                         if i == 0:
                             values[i] = 1.0
@@ -1533,10 +1533,10 @@ class Laplacian2D(BaseClass2D.BaseClass2D):
                     #    neigh_indices[i] = neigh_indices[i] - 4
                     #print(neigh_indices)
                     #print("multiply " + str(value_to_multiply))
-                    self.apply_rest_prol_ops(row_index  ,
-                                             neigh_indices,
-                                             new_bil_coeffs   ,
-                                             neigh_centers)
+                    #self.apply_rest_prol_ops(row_index  ,
+                    #                         neigh_indices,
+                    #                         new_bil_coeffs   ,
+                    #                         neigh_centers)
             else:
                 bil_coeffs = [coeff * (1.0 / h2s[idx]) for coeff in bil_coeffs]
 
@@ -1589,6 +1589,9 @@ class Laplacian2D(BaseClass2D.BaseClass2D):
         h2s = keys[:, 4] * keys[:, 4]
         centers = numpy.array([list_edg[i][1] for i in 
                                range(0, l_l_edg)]).reshape(l_l_edg, l_s)
+        #centers = [utilities.apply_persp_trans_inv(self.logger, center[0:2], adj_matrix) for center in centers]
+        for i,v in enumerate(centers):
+            centers[i][0] = (centers[i][0]*2.0) - 0.25
         #TODO: understand why here we need to pass \"center[0:2]\" to the 
         # function \"get_point_ownner_dx\", while in the previous version of
         # PABLitO we passed all the array \"center\". I think that it is due to
@@ -1629,28 +1632,30 @@ class Laplacian2D(BaseClass2D.BaseClass2D):
                 b_codim = int(keys[idx][3])
                 f_o_n = int(keys[idx][2])
                 h2 = h2s[idx]
-                w_first = utilities.compute_w_first(self.logger, centers[idx][0:2], adj_matrix)
+                #w_first = utilities.compute_w_first(self.logger, centers[idx][0:2], adj_matrix)
+                w_first = 0.5
                 if b_codim == 1:
                     if (f_o_n == 0 or f_o_n == 1):
                         value_to_multiply = (1.0 / h2) * math.pow(w_first, 2) * (math.pow(adj_matrix[0][0], 2) + math.pow(adj_matrix[1][0], 2))
                     else:
-                        value_to_multiply = (1.0 / h2) * math.pow(w_first, 2) * (math.pow(adj_matrix[0][1], 2) + math.pow(adj_matrix[1][1], 2))
+                        value_to_multiply = (1.0 / h2) * math.pow(w_first, 2) * (math.pow(adj_matrix[0][1], 2) + math.pow(2, 2))
+                    #value_to_multiply = 1.0/h2
                 else:
                     if (f_o_n == 0 or f_o_n == 3):
                         value_to_multiply = (2.0 / (4.0 * h2)) * math.pow(w_first, 2) * ((adj_matrix[0][0] * adj_matrix[0][1]) + 
-                                                                                         (adj_matrix[1][0] * adj_matrix[1][1]))
+                                                                                         (adj_matrix[1][0] * 2))
                     else:
                         value_to_multiply = (-2.0 / (4.0 * h2)) * math.pow(w_first, 2) * ((adj_matrix[0][0] * adj_matrix[0][1]) + 
-                                                                                          (adj_matrix[1][0] * adj_matrix[1][1]))
+                                                                                          (adj_matrix[1][0] * 2))
                 #print(1.0/h2s[idx])
                 bil_coeffs = [coeff * value_to_multiply for coeff in bil_coeffs]
             else:
                 bil_coeffs = [coeff * (1.0 / h2s[idx]) for coeff in bil_coeffs]
             l_start = time.time()
-            #self.apply_rest_prol_ops(int(keys[idx][1]),
-            #                         n_n_i            ,
-            #                         bil_coeffs       ,
-            #                         neigh_centers)
+            self.apply_rest_prol_ops(int(keys[idx][1]),
+                                     n_n_i            ,
+                                     bil_coeffs       ,
+                                     neigh_centers)
             l_end = time.time()
             time_rest_prol += (l_end - l_start)
         end = time.time()

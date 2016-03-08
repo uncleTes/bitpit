@@ -375,12 +375,15 @@ def compute_transf_geometry(comm_dictionary     ,
                                                                                              trans_coeff_adj[1][0] * trans_coeff_adj[1][1])))
     to_init_rhs = to_init_rhs_01 + to_init_rhs_02
 
-    #if proc_grid == 0:
+    #if proc_grid == 1:
     #    print(to_init_rhs - exact_solution.s_der)
-    if proc_grid == 1:
+    if proc_grid == 0:
         laplacian.init_rhs(exact_solution.sol)
     else:
-        laplacian.init_rhs(to_init_rhs)
+        #laplacian.init_rhs(to_init_rhs)
+        exact_solution.e_s_der(n_n_centers[:, 0], 
+                               n_n_centers[:, 1])
+        laplacian.init_rhs(exact_solution.s_der)
     #laplacian.init_rhs(exact_solution.s_der)
     #print(laplacian.rhs.view())
     laplacian.set_b_c(adj_matrix = trans_coeff_adj, matrix = trans_coeff)
@@ -398,7 +401,7 @@ def compute_transf_geometry(comm_dictionary     ,
     data_to_save = numpy.array([exact_solution.sol,
                                 interpolate_sol.getArray()])
 
-    #print(laplacian.mat.view())
+   # print(laplacian.mat.view())
 
     return (data_to_save, trans_coeff)
     
