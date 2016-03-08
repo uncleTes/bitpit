@@ -412,9 +412,9 @@ class Laplacian2D(BaseClass2D.BaseClass2D):
         # Converting from numpy array to python list.
 	b_values = b_values.tolist()
 
-        if grid == 0:
-            for i,v in enumerate(b_values):
-                b_values[i] = 0.0
+        #if grid == 0:
+        #    for i,v in enumerate(b_values):
+        #        b_values[i] = 0.0
 
 
         # Grids not of the background: equal to number >= 1.
@@ -996,12 +996,12 @@ class Laplacian2D(BaseClass2D.BaseClass2D):
                                     values.append((-2.0 / (4.0 * h2)) * math.pow(w_first, 2) * ((adj_matrix[0][0] * adj_matrix[0][1]) + 
                                                                                                 (adj_matrix[1][0] * adj_matrix[1][1])))
 
-                if is_background:
-                    for i,v in enumerate(values):
-                        if i == 0:
-                            values[i] = 1.0
-                        else:
-                            values[i] = 0.0
+                #if is_background:
+                #    for i,v in enumerate(values):
+                #        if i == 0:
+                #            values[i] = 1.0
+                #        else:
+                #            values[i] = 0.0
                 self._b_mat.setValues(m_g_octant, # Row
                                       indices   , # Columns
                                       values)     # Values to be inserted
@@ -1533,10 +1533,10 @@ class Laplacian2D(BaseClass2D.BaseClass2D):
                     #    neigh_indices[i] = neigh_indices[i] - 4
                     #print(neigh_indices)
                     #print("multiply " + str(value_to_multiply))
-                    #self.apply_rest_prol_ops(row_index  ,
-                    #                         neigh_indices,
-                    #                         new_bil_coeffs   ,
-                    #                         neigh_centers)
+                    self.apply_rest_prol_ops(row_index  ,
+                                             neigh_indices,
+                                             new_bil_coeffs   ,
+                                             neigh_centers)
             else:
                 bil_coeffs = [coeff * (1.0 / h2s[idx]) for coeff in bil_coeffs]
 

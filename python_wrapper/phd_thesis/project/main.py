@@ -377,13 +377,16 @@ def compute_transf_geometry(comm_dictionary     ,
 
     #if proc_grid == 1:
     #    print(to_init_rhs - exact_solution.s_der)
-    if proc_grid == 0:
-        laplacian.init_rhs(exact_solution.sol)
-    else:
-        #laplacian.init_rhs(to_init_rhs)
-        exact_solution.e_s_der(n_n_centers[:, 0], 
-                               n_n_centers[:, 1])
-        laplacian.init_rhs(exact_solution.s_der)
+    #if proc_grid == 0:
+    #    laplacian.init_rhs(exact_solution.sol)
+    #else:
+    #    #laplacian.init_rhs(to_init_rhs)
+    #    exact_solution.e_s_der(n_n_centers[:, 0], 
+    #                           n_n_centers[:, 1])
+    #    laplacian.init_rhs(exact_solution.s_der)
+    exact_solution.e_s_der(n_n_centers[:, 0], 
+                           n_n_centers[:, 1])
+    laplacian.init_rhs(exact_solution.s_der)
     #laplacian.init_rhs(exact_solution.s_der)
     #print(laplacian.rhs.view())
     laplacian.set_b_c(adj_matrix = trans_coeff_adj, matrix = trans_coeff)
