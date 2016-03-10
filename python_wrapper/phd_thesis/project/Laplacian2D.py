@@ -355,8 +355,7 @@ class Laplacian2D(BaseClass2D.BaseClass2D):
     # --------------------------------------------------------------------------
     # Set boundary conditions.
     def set_b_c(self,
-                adj_matrix = None,
-                matrix = None):
+                adj_matrix):
         """Method which set boundary conditions for the different grids."""
     
 	log_file = self.logger.handlers[0].baseFilename
@@ -451,7 +450,7 @@ class Laplacian2D(BaseClass2D.BaseClass2D):
         #    for i,value in enumerate(b_values):
         #        if b_codim[i] == 2:
         #            b_values[i] = 0
-        if (adj_matrix is not None):
+        if (adj_matrix.all() is not None):
             for i, value in enumerate(b_values):
                 w_first = utilities.compute_w_first(logger, c_neighs[i], adj_matrix)
                 if b_codim[i] == 1:
@@ -688,7 +687,7 @@ class Laplacian2D(BaseClass2D.BaseClass2D):
                             if matrix == None:
                                 stencil[s_i + 1], stencil[s_i + 2] = n_center
                             else:
-                                stencil[s_i + 1], stencil[s_i + 2] = utilities.apply_persp_trans(n_center, matrix, logger)[0:2]
+                                stencil[s_i + 1], stencil[s_i + 2] = utilities.apply_persp_trans(2, n_center, matrix, logger, log_file)[0:2]
                             stencil[s_i + 3] = 1 # codim
                             stencil[s_i + 4] = face 
                             self._edl[key] = stencil
@@ -750,7 +749,7 @@ class Laplacian2D(BaseClass2D.BaseClass2D):
                             if matrix == None:
                                 stencil[s_i + 1], stencil[s_i + 2] = n_center
                             else:
-                                stencil[s_i + 1], stencil[s_i + 2] = utilities.apply_persp_trans(n_center, matrix, logger)[0:2]
+                                stencil[s_i + 1], stencil[s_i + 2] = utilities.apply_persp_trans(2, n_center, matrix, logger, log_file)[0:2]
                             stencil[s_i + 3] = 2 # codim
                             stencil[s_i + 4] = node 
                             self._edl[key] = stencil
@@ -829,10 +828,10 @@ class Laplacian2D(BaseClass2D.BaseClass2D):
 
     # --------------------------------------------------------------------------
     # Initialize diagonal matrices of the block matrix.
-    def init_mat(self,
+    def init_mat(self              ,
                  (e_d_nnz, e_o_nnz),
-                 o_n_oct = 0,
-                 adj_matrix = None):
+                 adj_matrix        ,
+                 o_n_oct = 0):
         """Method which initialize the diagonal parts of the monolithic matrix 
            of the system.
            
@@ -899,7 +898,7 @@ class Laplacian2D(BaseClass2D.BaseClass2D):
                                                   	        log_file)
             if not is_penalized:
                 indices.append(m_g_octant)
-                if adj_matrix == None:
+                if adj_matrix.all() == None:
                     values.append((-4.0 / h2))
                 else:
                     w_first = utilities.compute_w_first(logger, center, adj_matrix)
@@ -944,7 +943,7 @@ class Laplacian2D(BaseClass2D.BaseClass2D):
                                                       	                      log_file)
                         if not is_n_penalized:
                             indices.append(m_index)
-                            if adj_matrix == None:
+                            if adj_matrix.all() == None:
                                 values.append(1.0 / h2)
                             else:
                                 #print((1.0 / h2) * math.pow(w_first, 2) * (math.pow(adj_matrix[0][0], 2) + math.pow(adj_matrix[1][0], 2)))
@@ -953,7 +952,7 @@ class Laplacian2D(BaseClass2D.BaseClass2D):
                                     values.append((1.0 / h2) * math.pow(w_first, 2) * (math.pow(adj_matrix[0][0], 2) + math.pow(adj_matrix[1][0], 2)))
                                 else:
                                     values.append((1.0 / h2) * math.pow(w_first, 2) * (math.pow(adj_matrix[0][1], 2) + math.pow(adj_matrix[1][1], 2)))
-                if (adj_matrix is not None):
+                if (adj_matrix.all() is not None):
                     for node in n_y_s:
                         is_n_penalized = False
                         (neighs, ghosts) = octree.find_neighbours(octant, 
@@ -1327,10 +1326,9 @@ class Laplacian2D(BaseClass2D.BaseClass2D):
     # --------------------------------------------------------------------------
     # Creating the restriction and prolongation blocks inside the monolithic 
     # matrix of the system.
-    def update_values(self, 
-                      intercomm_dictionary = {},
-                      adj_matrix = None,
-                      matrix = None):
+    def update_values(self                , 
+                      intercomm_dictionary,
+                      adj_matrix):
         """Method wich update the system matrix.
 
            Arguments:
@@ -1412,8 +1410,7 @@ class Laplacian2D(BaseClass2D.BaseClass2D):
         if not is_background:
             self.update_fg_grids(o_ranges,
                                  ids_octree_contained,
-                                 adj_matrix,
-                                 matrix)
+                                 adj_matrix)
         else:
             self.update_bg_grids(o_ranges,
                                  ids_octree_contained,
@@ -1431,11 +1428,10 @@ class Laplacian2D(BaseClass2D.BaseClass2D):
 
     # --------------------------------------------------------------------------
     # Sub_method of \"update_values\".
-    def update_fg_grids(self    ,
-                        o_ranges,
+    def update_fg_grids(self                ,
+                        o_ranges            ,
                         ids_octree_contained,
-                        adj_matrix = None,
-                        matrix = None):
+                        adj_matrix):
         """Method which update the non diagonal blocks relative to the 
            foreground grids.
 
@@ -1445,6 +1441,7 @@ class Laplacian2D(BaseClass2D.BaseClass2D):
                 ids_octree_contained (list) : list of the indices of the octants
                                               contained in the current process."""
 
+	log_file = self.logger.handlers[0].baseFilename
         octree = self._octree
         comm_l = self._comm
         time_rest_prol = 0
@@ -1468,7 +1465,7 @@ class Laplacian2D(BaseClass2D.BaseClass2D):
                                 # perfectly superposed??
                                 range(0, l_l_edg)]).reshape(l_l_edg, l_s)
         centers = [(stencils[i][1], stencils[i][2], 0) for i in range(0, l_l_edg)]
-        centers = [utilities.apply_persp_trans_inv(self.logger, center[0:2], adj_matrix) for center in centers]
+        centers = [utilities.apply_persp_trans_inv(2, center[0:2], adj_matrix, self.logger, log_file) for center in centers]
         for i,v in enumerate(centers):
             centers[i].append(0)
         # Vectorized functions are just syntactic sugar:
@@ -1501,7 +1498,7 @@ class Laplacian2D(BaseClass2D.BaseClass2D):
             bil_coeffs = utilities.bil_coeffs(centers[idx][0:2],
                                               neigh_centers)
 
-            if adj_matrix is not None:
+            if adj_matrix.all() is not None:
                 #print(stencils[idx])
                 for i in range(6, len(stencils[idx]), 5):
                     b_codim = int(stencils[idx][i])
@@ -1560,10 +1557,10 @@ class Laplacian2D(BaseClass2D.BaseClass2D):
     
     # --------------------------------------------------------------------------
     # Sub_method of \"update_values\".
-    def update_bg_grids(self    ,
-                        o_ranges,
+    def update_bg_grids(self                ,
+                        o_ranges            ,
                         ids_octree_contained,
-                        adj_matrix = None):
+                        adj_matrix):
         """Method which update the non diagonal blocks relative to the 
            backgrounds grids.
 
@@ -1628,7 +1625,7 @@ class Laplacian2D(BaseClass2D.BaseClass2D):
                     n_n_i.append(masked_index)
                 else:
                     n_n_i.append(index)
-            if adj_matrix is not None:
+            if adj_matrix.all() is not None:
                 b_codim = int(keys[idx][3])
                 f_o_n = int(keys[idx][2])
                 h2 = h2s[idx]

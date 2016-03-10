@@ -224,34 +224,47 @@ cdef class Py_My_Pablo_Uniform(Py_Para_Tree):
 
         return py_oct
 
-    def prova_trans(self, coefficients):
+    def apply_persp_trans(self      ,
+                          dimension , 
+                          p_t_coeffs, 
+                          logger    , 
+                          log_file):
         import utilities
-        cdef size_t nNodes = self.thisptr.getNumNodes()
-        cdef size_t nGhostNodes = (self.thisptr.getGhostNodes()).size()
+        # Number of nodes.
+        cdef size_t n_nodes = self.thisptr.getNumNodes()
+        # Number of ghost nodes.
+        cdef size_t n_g_nodes = (self.thisptr.getGhostNodes()).size()
         cdef int index
         cdef darray3 coordinates
-        cdef vector[darray3] C_geo_nodes
-        cdef vector[darray3] C_ghost_geo_nodes 
-        geo_nodes = []
-        ghost_geo_nodes = []
+        py_coordinates = [0.0] * 3
+        # Geo nodes.
+        g_nodes = []
+        # Ghost geo nodes.
+        g_g_nodes = []
 
-        for index in xrange(0, nNodes):
-            py_coordinates = []
+        for index in xrange(0, n_nodes):
             coordinates = self.der_thisptr._getNodeCoordinates(index)
-            for i in xrange(0, 2):
-                py_coordinates.append(coordinates[i])
+            for i in xrange(0, dimension):
+                py_coordinates[i] = coordinates[i]
 
-            to_append = utilities.apply_persp_trans(py_coordinates, coefficients)
-            geo_nodes.append(to_append)
+            to_append = utilities.apply_persp_trans(dimension     ,
+                                                    py_coordinates, 
+                                                    p_t_coeffs    , 
+                                                    logger        , 
+                                                    log_file)
+            g_nodes.append(to_append)
         
-        for index in xrange(0, nGhostNodes):
-            py_coordinates = []
+        for index in xrange(0, n_g_nodes):
             coordinates = self.der_thisptr._getGhostNodeCoordinates(index)
-            for i in xrange(0, 2):
-                py_coordinates.append(coordinates[i])
+            for i in xrange(0, dimension):
+                py_coordinates[i] = coordinates[i]
             
-            to_append = utilities.apply_persp_trans(py_coordinates, coefficients)
-            ghost_geo_nodes.append(to_append)
+            to_append = utilities.apply_persp_trans(dimension     ,
+                                                    py_coordinates, 
+                                                    p_t_coeffs    , 
+                                                    logger        , 
+                                                    log_file)
+            g_g_nodes.append(to_append)
 
-        return (geo_nodes, ghost_geo_nodes)
+        return (g_nodes, g_g_nodes)
         

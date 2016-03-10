@@ -81,6 +81,8 @@ try:
     overlapping = config.getboolean("PROBLEM", "Overlapping")
     # Particles interaction.
     p_inter = config.getboolean("PROBLEM", "ParticlesInteraction")
+    # Logical to physical mappin.
+    mapping = config.getboolean("PROBLEM", "Mapping")
 except (ConfigParser.NoOptionError , 
         ConfigParser.NoSectionError,
         ParsingFileException       ,
@@ -96,6 +98,44 @@ comm_names = ["comm_" + str(j) for j in range(n_grids)]
 comm_w = MPI.COMM_WORLD
 rank_w = comm_w.Get_rank()
 
+# ------------------------------------------------------------------------------
+def set_trans_dicts(n_grids,
+                    dim    ,
+                    logger ,
+                    log_file):
+    trans_dictionary = {}
+    trans_adj_dictionary = {}
+    for grid in xrange(0, n_grids):
+        # Original points.
+        or_points = [anchors[grid][0], 
+                     anchors[grid][1], 
+                     anchors[grid][2], # Left low anchor.
+                     anchors[grid][0] + edges[grid], 
+                     anchors[grid][1], 
+                     anchors[grid][2], # Right low anchor.
+                     anchors[grid][0] + edges[grid], 
+                     anchors[grid][1] + edges[grid], 
+                     anchors[grid][2], # Right high anchor.
+                     anchors[grid][0], 
+                     anchors[grid][1] + edges[grid], 
+                     anchors[grid][2]] # Left high anchor.
+        # Matrix of tranformation coefficients from logical to physical.
+        t_coeffs = utilities.p_t_coeffs(dim           , # Problem's dimension
+                                        or_points     , # Original points
+                                        t_points[grid], # Mapped points
+                                        logger        , # Logger
+                                        log_file)       # Log file
+        # Adjoint matrix of tranformation coefficients from physical to logical.
+        t_coeffs_adj = utilities.p_t_coeffs_adj(dim     , # Problem's dimension
+                                                t_coeffs, # Transformation coeffs 
+                                                logger  , # Logger
+                                                log_file) # Log file
+    
+        trans_dictionary.update({grid : t_coeffs})
+        trans_adj_dictionary.update({grid : t_coeffs_adj})
+
+    return (trans_dictionary, trans_adj_dictionary)
+    
 # ------------------------------------------------------------------------------
 def set_comm_dict(n_grids  ,
                   proc_grid,
@@ -157,6 +197,7 @@ def set_comm_dict(n_grids  ,
     comm_dictionary.update({"overlapping" : overlapping})
     comm_dictionary.update({"dimension" : dimension})
     comm_dictionary.update({"particles interaction" : p_inter})
+    comm_dictionary.update({"mapping" : mapping})
     comm_dictionary.update({"log file" : log_file})
 
     return comm_dictionary
@@ -314,105 +355,11 @@ def set_octree(comm_l,
     return pablo, centers
 # ------------------------------------------------------------------------------
 
-def compute_transf_geometry(comm_dictionary     ,
-                            intercomm_dictionary,
-                            logger              ,
-                            proc_grid           ,
-                            centers):
-    laplacian = Laplacian2D.Laplacian2D(comm_dictionary)
-    exact_solution = ExactSolution2D.ExactSolution2D(comm_dictionary)
-    # Original points.
-    or_points = [anchors[proc_grid][0], anchors[proc_grid][1], anchors[proc_grid][2],
-                 anchors[proc_grid][0] + edges[proc_grid], anchors[proc_grid][1], anchors[proc_grid][2],
-                 anchors[proc_grid][0] + edges[proc_grid], anchors[proc_grid][1] + edges[proc_grid], anchors[proc_grid][2],
-                 anchors[proc_grid][0], anchors[proc_grid][1] + edges[proc_grid], anchors[proc_grid][2]]
-
-    trans_coeff = utilities.persp_trans_coeffs(2        ,
-                                               logger   ,
-                                               or_points,
-                                               t_points[proc_grid])
-    trans_coeff_adj = utilities.persp_trans_coeffs_adj(2,
-                                                       logger,
-                                                       trans_coeff)
-    
-    (d_nnz, o_nnz) = laplacian.create_mask(o_n_oct = 0, matrix = trans_coeff)
-    laplacian.init_sol()
-
-    laplacian.init_mat((d_nnz, o_nnz), o_n_oct = 0, adj_matrix = trans_coeff_adj)
-    not_penalized_centers = laplacian.not_pen_centers
-    not_penalized_x = numpy.asarray([center[0] for center in \
-                                     not_penalized_centers])
-    not_penalized_y = numpy.asarray([center[1] for center in \
-                                     not_penalized_centers])
-    # New centers.
-    n_centers = [utilities.apply_persp_trans(center, trans_coeff, logger) for center in not_penalized_centers]
-    print("proc " + str(comm_w.Get_rank()) + " " + str(trans_coeff_adj))
-    print("proc " + str(comm_w.Get_rank()) + " " + str(trans_coeff))
-    n_n_centers = numpy.array(n_centers)
-    exact_solution.e_sol(n_n_centers[:, 0], 
-                         n_n_centers[:, 1],
-                         n_n_centers[:, 2] if (dimension == 3) else None)
-    #exact_solution.e_sol(not_penalized_x, 
-    #                       not_penalized_y)
-    exact_solution.e_s_der(not_penalized_x, 
-                           not_penalized_y)
-    exact_solution.e_m_s_der(not_penalized_x,
-                             not_penalized_y)
-    exact_solution.e_s_der_x(not_penalized_x,
-                             not_penalized_y)
-    exact_solution.e_s_der_y(not_penalized_x,
-                             not_penalized_y)
-
-
-    n_w_first = utilities.numpy_compute_w_first(n_n_centers[:, 0], n_n_centers[:, 1], trans_coeff_adj)
-
-    to_init_rhs_01 = numpy.add(numpy.multiply(exact_solution.s_der_x, numpy.multiply(numpy.power(n_w_first,2), numpy.power(trans_coeff_adj[0][0], 2) + 
-                                                                                                            numpy.power(trans_coeff_adj[1][0], 2))), 
-                            numpy.multiply(exact_solution.s_der_y, numpy.multiply(numpy.power(n_w_first,2), numpy.power(trans_coeff_adj[0][1], 2) + 
-                                                                                                            numpy.power(trans_coeff_adj[1][1], 2))))
-    to_init_rhs_02 = numpy.multiply(2, numpy.multiply(exact_solution.m_s_der, numpy.multiply(numpy.power(n_w_first, 2),
-                                                                                             trans_coeff_adj[0][0] * trans_coeff_adj[0][1] + 
-                                                                                             trans_coeff_adj[1][0] * trans_coeff_adj[1][1])))
-    to_init_rhs = to_init_rhs_01 + to_init_rhs_02
-
-    #if proc_grid == 1:
-    #    print(to_init_rhs - exact_solution.s_der)
-    #if proc_grid == 0:
-    #    laplacian.init_rhs(exact_solution.sol)
-    #else:
-    #    #laplacian.init_rhs(to_init_rhs)
-    #    exact_solution.e_s_der(n_n_centers[:, 0], 
-    #                           n_n_centers[:, 1])
-    #    laplacian.init_rhs(exact_solution.s_der)
-    exact_solution.e_s_der(n_n_centers[:, 0], 
-                           n_n_centers[:, 1])
-    laplacian.init_rhs(exact_solution.s_der)
-    #laplacian.init_rhs(exact_solution.s_der)
-    #print(laplacian.rhs.view())
-    laplacian.set_b_c(adj_matrix = trans_coeff_adj, matrix = trans_coeff)
-    laplacian.update_values(intercomm_dictionary, adj_matrix = trans_coeff_adj, matrix = trans_coeff)
-    laplacian.solve()
-    (norm_inf, norm_L2) = laplacian.evaluate_norms(exact_solution.sol,
-                                                   laplacian.sol.getArray())
-    print("process " + str(comm_w.Get_rank()) + " " + str((norm_inf, norm_L2)))
-    interpolate_sol = laplacian.interpolate_solution()
-    n_centers = [utilities.apply_persp_trans(center, trans_coeff, logger) for center in centers]
-    n_n_centers = numpy.array(n_centers)
-    exact_solution.e_sol(n_n_centers[:, 0], 
-                         n_n_centers[:, 1],
-                         n_n_centers[:, 2] if (dimension == 3) else None)
-    data_to_save = numpy.array([exact_solution.sol,
-                                interpolate_sol.getArray()])
-
-   # print(laplacian.mat.view())
-
-    return (data_to_save, trans_coeff)
-    
-
-# ------------------------------------------------------------------------------
 def compute(comm_dictionary     ,
             intercomm_dictionary,
-            centers):
+            proc_grid           ,
+            centers             ,
+            logger):
     """Method which compute all the calculation for the laplacian, exact 
        solution and residuals.
 
@@ -421,8 +368,11 @@ def compute(comm_dictionary     ,
                                     intra-communicator and grid.
            intercomm_dictionary (dict) : dictionary containing the 
                                          intercommunicators created.
+           proc_grid (int) : grid of the current process.
            centers (list[lists]) : list containing lists of the centers of the
                                    quadtree contained in the current process.
+           logger (utilities.Logger) : logger needed to log the 
+                                       intercommunicators created.
 
        Returns:
            data_to_save (numpy.array) : array containings the data to be saved
@@ -430,44 +380,83 @@ def compute(comm_dictionary     ,
 
     laplacian = Laplacian2D.Laplacian2D(comm_dictionary)
     exact_solution = ExactSolution2D.ExactSolution2D(comm_dictionary)
-    (d_nnz, o_nnz) = laplacian.create_mask()
+
+    t_coeffs = numpy.array(None)
+    t_coeffs_adj = numpy.array(None)
+    
+    if mapping:
+        trans_dictionary, trans_adj_dictionary = set_trans_dicts(n_grids  ,
+                                                                 dimension,
+                                                                 logger   ,
+                                                                 log_file)
+        t_coeffs = trans_dictionary[proc_grid]
+        t_coeffs_adj = trans_adj_dictionary[proc_grid]
+
+    (d_nnz, o_nnz) = laplacian.create_mask(o_n_oct = 0)
     laplacian.init_sol()
-    laplacian.init_mat((d_nnz, o_nnz))
+
+    laplacian.init_mat((d_nnz, o_nnz)           , 
+                       adj_matrix = t_coeffs_adj,
+                       o_n_oct = 0              , 
+    )
     not_penalized_centers = laplacian.not_pen_centers
-    not_penalized_x = numpy.asarray([center[0] for center in \
-                                     not_penalized_centers])
-    not_penalized_y = numpy.asarray([center[1] for center in \
-                                     not_penalized_centers])
-    not_penalized_z = None
-    if (dimension == 3):
-        not_penalized_z = numpy.asarray([center[2] for center in \
-                                         not_penalized_centers])
-    # Evaluating exact solution in the centers of the PABLO's cells.
-    exact_solution.e_sol(not_penalized_x, 
-                         not_penalized_y,
-                         not_penalized_z)
-    # Evaluating second derivative of the exact solution,
-    exact_solution.e_s_der(not_penalized_x, 
-                           not_penalized_y,
-                           not_penalized_z)
+    # Physical centers.
+    if mapping:
+        p_centers = [utilities.apply_persp_trans(dimension,
+                                                 center   , 
+                                                 t_coeffs , 
+                                                 logger   , 
+                                                 log_file)\
+                     for center in not_penalized_centers]
+    else:
+        p_centers = [[center[0], center[1], center[2]] \
+                     for center in not_penalized_centers]
+    # Numpy physical centers.
+    # Numpy's \".asarray()\" or \".array()\" function? Checkout this link:
+    # http://stackoverflow.com/questions/14415741/numpy-array-vs-asarray
+    # If the original array is a Python list, then use the second function,
+    # because it will be always needed a copy of the object.
+    n_p_centers = numpy.array(p_centers)
+    # Numpy w's.
+    #n_w_first_s = utilities.h_c_w_first(dimension   ,
+    #                                    n_p_centers , 
+    #                                    t_coeffs_adj,
+    #                                    logger      ,
+    #                                    log_file)
+
+    exact_solution.e_sol(n_p_centers[:, 0], 
+                         n_p_centers[:, 1],
+                         n_p_centers[:, 2] if (dimension == 3) else None)
+    exact_solution.e_s_der(n_p_centers[:, 0], 
+                           n_p_centers[:, 1],
+                           n_p_centers[:, 2] if (dimension == 3) else None)
     laplacian.init_rhs(exact_solution.s_der)
-    laplacian.set_b_c()
-    laplacian.update_values(intercomm_dictionary)
+    laplacian.set_b_c(adj_matrix = t_coeffs_adj)
+    laplacian.update_values(intercomm_dictionary, 
+                            adj_matrix = t_coeffs_adj)
     laplacian.solve()
     (norm_inf, norm_L2) = laplacian.evaluate_norms(exact_solution.sol,
                                                    laplacian.sol.getArray())
     print("process " + str(comm_w.Get_rank()) + " " + str((norm_inf, norm_L2)))
     interpolate_sol = laplacian.interpolate_solution()
-    
-    # Creating a numpy array with two single numpy arrays. Note that you 
-    # could have done this also with two simple python's lists.
-    exact_solution.e_sol(centers[:, 0], 
-                         centers[:, 1],
-                         centers[:, 2] if (dimension == 3) else None)
+    if mapping:
+        p_centers = [utilities.apply_persp_trans(dimension,
+                                                 center   , 
+                                                 t_coeffs , 
+                                                 logger   ,
+                                                 log_file)\
+                     for center in centers]
+    else:
+        p_centers = [[center[0], center[1], center[2]] \
+                     for center in centers]
+    n_p_centers = numpy.array(p_centers)
+    exact_solution.e_sol(n_p_centers[:, 0], 
+                         n_p_centers[:, 1],
+                         n_p_centers[:, 2] if (dimension == 3) else None)
     data_to_save = numpy.array([exact_solution.sol,
                                 interpolate_sol.getArray()])
 
-    return data_to_save
+    return (data_to_save, t_coeffs)
 # ------------------------------------------------------------------------------
 
 # -------------------------------------MAIN-------------------------------------
@@ -518,21 +507,22 @@ def main():
 
     comm_dictionary.update({"octree" : pablo})
     comm_dictionary.update({"grid processes" : procs_l_lists[proc_grid]})
-    
-    data_to_save, trans_coeff = compute_transf_geometry(comm_dictionary     ,
-                                                        intercomm_dictionary,
-                                                        logger              ,
-                                                        proc_grid           ,
-                                                        centers)
-
-    #data_to_save = compute(comm_dictionary     ,
-    #                       intercomm_dictionary,
-    #                       centers)
+    # \"data_to_save\" = evaluated and exact solution;
+    # \"trans_coeff\" = matrix containing perspective transformation's 
+    # coefficients.
+    data_to_save, trans_coeff = compute(comm_dictionary     ,
+                                        intercomm_dictionary,
+                                        proc_grid           ,
+                                        centers             ,
+                                        logger)
 
     n_octs = pablo.get_num_octants()
     n_nodes = pablo.get_num_nodes()
 
-    (geo_nodes, ghost_geo_nodes) = pablo.prova_trans(trans_coeff)
+    (geo_nodes, ghost_geo_nodes) = pablo.apply_persp_trans(dimension  ,
+                                                           trans_coeff, 
+                                                           logger     , 
+                                                           log_file)
 
     vtk = my_class_vtk.Py_My_Class_VTK(data_to_save            , # Data
                                        pablo                   , # Octree

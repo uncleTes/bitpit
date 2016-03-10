@@ -411,13 +411,15 @@ def bil_interp(unknown_point	 ,
     return value
 
 # Perspective transformation coefficients (linear coefficients).
-def persp_trans_coeffs(dim            ,
-                       logger         ,
-                       original_points,
-                       transformed_points):
+def p_t_coeffs(dim               ,
+               original_points   ,
+               transformed_points,
+               logger            ,
+               log_file):
     coefficients = None
     matrix = None
     rhs = None
+    logger = check_null_logger(logger, log_file)
 
     try:
         assert isinstance(original_points, 
@@ -473,18 +475,19 @@ def persp_trans_coeffs(dim            ,
         return coefficients
 
 # Perspective transformation coefficients for adjoint matrix.
-def persp_trans_coeffs_adj(dim   ,
-                           logger,
-                           persp_trans_coeffs):
+def p_t_coeffs_adj(dim       ,
+                   p_t_coeffs,
+                   logger    ,
+                   log_file):
     # Adjoint matrix
     ad_matrix = None
-    A = persp_trans_coeffs
+    A = p_t_coeffs
+    logger = check_null_logger(logger, log_file)
     
     try:
         assert (2 <= dim <= 3), "Wrong dimension passed as first parameter."
 
         if (dim == 2):
-            #print(A[1][1])
             ad_matrix = numpy.array([[(A[1][1] * A[2][2]) - (A[1][2] * A[2][1]),
                                       (A[0][2] * A[2][1]) - (A[0][1] * A[2][2]),
                                       (A[0][1] * A[1][2]) - (A[0][2] * A[1][1]),
@@ -542,14 +545,26 @@ def persp_trans_coeffs_adj(dim   ,
     finally:
         return ad_matrix
 
-def numpy_compute_w_first(x_s,
-                          y_s,
-                          coefficients):
-    n_x = numpy.multiply(x_s, coefficients[0][2])    
-    n_y = numpy.multiply(y_s, coefficients[1][2])
-    n_div = numpy.add(n_x, n_y)
-    n_div = numpy.add(n_div, coefficients[2][2])
-    return numpy.true_divide(1, n_div)     
+# Homogeneous coordinate w'.
+def h_c_w_first(dimension,
+                points      ,
+                coefficients,
+                logger      ,
+                log_file):
+    logger = check_null_logger(logger, log_file)
+    dim = dimension
+
+    x_s = numpy.multiply(points[:, 0], coefficients[0][dim])    
+    y_s = numpy.multiply(points[:, 1], coefficients[1][dim])
+    if (dim == 3):
+        z_s = numpy.multiply(points[:, 2], coefficients[2][dim])
+    # Inverse of w'.
+    i_w_first = numpy.add(x_s, y_s)
+    if (dim == 3):
+        i_w_first = numpy.add(i_w_first, z_s)
+    i_w_first = numpy.add(i_w_first, coefficients[dim][dim])
+
+    return numpy.true_divide(1, i_w_first)    
 
 def compute_w_first(logger,
                     point,
@@ -576,19 +591,23 @@ def compute_w_first(logger,
         msg_err = sys.exc_info()[1] 
         logger.error(msg_err)
     finally:
-        return w_first
+        return w_first 
 
-def apply_persp_trans_inv(logger,
-                          point ,
-                          coefficients):
+
+def apply_persp_trans_inv(dimension   ,
+                          point       ,
+                          coefficients,
+                          logger      ,
+                          log_file):
     # Numpy point.
-    np_point = numpy.asarray(point,
+    np_point = numpy.asarray(point[0 : dimension],
                              dtype = numpy.float64)
     dim = np_point.shape[0]
     # Homogeneous coordinates.
     np_point = numpy.append(np_point, 1)
     # Transformed inverse point.
     t_i_point = None
+    logger = check_null_logger(logger, log_file)
     ad_matrix = coefficients
 
     try:
@@ -608,24 +627,32 @@ def apply_persp_trans_inv(logger,
         np_point = numpy.multiply(np_point, w_first)
         # Numpy transformed inverse point.
         np_t_i_point = numpy.dot(np_point, ad_matrix)
-        t_i_point = np_t_i_point[0 : -1].tolist()
+        if (dimension == 2):
+            # Returning however 3 coordinates, also being in 2D. New \"PABLO\"
+            # is intrinsically 3D.
+            np_t_i_point[-1] = 0.0
+        else:
+            np_t_i_point = np_t_i_point[0 : -1]
+        t_i_point = np_t_i_point.tolist()
     except AssertionError:
         msg_err = sys.exc_info()[1] 
         logger.error(msg_err)
     finally:
         return t_i_point
 
-def apply_persp_trans(point ,
+def apply_persp_trans(dimension   ,
+                      point       ,
                       coefficients,
-                      logger = None):
+                      logger      ,
+                      log_file):
     # Numpy point.
-    np_point = numpy.asarray(point, 
+    np_point = numpy.asarray(point[0 : dimension], 
                              dtype = numpy.float64)
     # Homogeneous coordinates.
     np_point = numpy.append(np_point, 1)
     # Transformed point.
     t_point = None
-
+    logger = check_null_logger(logger, log_file)
     try:
         # Number of columns equal to number of rows.
         assert (np_point.shape[0] == coefficients.shape[0]), \
@@ -634,16 +661,16 @@ def apply_persp_trans(point ,
         np_t_point = numpy.dot(np_point, coefficients)
         np_t_point = numpy.true_divide(np_t_point,
                                        np_t_point[-1])
-        # Returning however 3 coordinates, also being in 2D. New \"PABLO\"
-        # is intrinsically 3D.
-        np_t_point[-1] = 0 
+        if (dimension == 2):
+            # Returning however 3 coordinates, also being in 2D. New \"PABLO\"
+            # is intrinsically 3D.
+            np_t_point[-1] = 0.0 
+        else:
+            np_t_point = np_t_point[0 : -1]
         t_point = np_t_point.tolist()
     except AssertionError:
         msg_err = sys.exc_info()[1]
-        if logger is not None: 
-            logger.error(msg_err)
-        else:
-            print(msg_error)
+        logger.error(msg_err)
     finally:
         return t_point
 # ------------------------------------------------------------------------------
