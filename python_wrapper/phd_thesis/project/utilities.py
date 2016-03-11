@@ -546,14 +546,18 @@ def p_t_coeffs_adj(dim       ,
         return ad_matrix
 
 # Homogeneous coordinate w'.
-def h_c_w_first(dimension,
-                points      ,
+def h_c_w_first(dimension   ,
+                in_points   ,
                 coefficients,
                 logger      ,
                 log_file):
     logger = check_null_logger(logger, log_file)
     dim = dimension
-
+    # http://stackoverflow.com/questions/12569452/how-to-identify-numpy-types-in-python
+    if (type(in_points).__module__ == numpy.__name__):
+        points = in_points
+    else: 
+        points = numpy.array(in_points)
     x_s = numpy.multiply(points[:, 0], coefficients[0][dim])    
     y_s = numpy.multiply(points[:, 1], coefficients[1][dim])
     if (dim == 3):

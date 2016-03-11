@@ -359,6 +359,7 @@ class Laplacian2D(BaseClass2D.BaseClass2D):
         """Method which set boundary conditions for the different grids."""
     
 	log_file = self.logger.handlers[0].baseFilename
+        logger = self.logger
         penalization = self._pen
         b_bound = self._b_bound
         grid = self._proc_g
@@ -371,6 +372,8 @@ class Laplacian2D(BaseClass2D.BaseClass2D):
         h2 = h * h
         is_background = True
         o_ranges = self.get_ranges()
+        dimension = self._dim
+        mapping = self._mapping
 
         # If we are onto the grid \"0\", we are onto the background grid.
         if grid:
@@ -388,7 +391,7 @@ class Laplacian2D(BaseClass2D.BaseClass2D):
                 py_oct = self._octree.get_octant(octant)
                 center  = self._octree.get_center(octant)[:2]
 
-                # Nodes yet seen.
+                # Nodes yet seen. Using Python \"sets\" to avoid duplicates.
                 n_y_s = set()
                 for face in xrange(0, nfaces):
                     # If we have an edge on the boundary.
@@ -410,12 +413,6 @@ class Laplacian2D(BaseClass2D.BaseClass2D):
                                              b_codim)
         # Converting from numpy array to python list.
 	b_values = b_values.tolist()
-
-        #if grid == 0:
-        #    for i,v in enumerate(b_values):
-        #        b_values[i] = 0.0
-
-
         # Grids not of the background: equal to number >= 1.
         if grid:
             for i, center in enumerate(c_neighs):
@@ -444,28 +441,54 @@ class Laplacian2D(BaseClass2D.BaseClass2D):
                     # matrix.
                     b_values[i] = 0.0
 	 
-        logger = self.logger
-        #b_values[:] = [b_value * (-1.0 / h2) for b_value in b_values]
-        #if not grid:
-        #    for i,value in enumerate(b_values):
-        #        if b_codim[i] == 2:
-        #            b_values[i] = 0
-        if (adj_matrix.all() is not None):
-            for i, value in enumerate(b_values):
-                w_first = utilities.compute_w_first(logger, c_neighs[i], adj_matrix)
-                if b_codim[i] == 1:
-                    if (b_f_o_n[i]  == 0 or b_f_o_n[i] == 1):
-                        value_to_multiply = (1.0 / h2) * math.pow(w_first, 2) * (math.pow(adj_matrix[0][0], 2) + math.pow(adj_matrix[1][0], 2))
-                    else:
-                        value_to_multiply = (1.0 / h2) * math.pow(w_first, 2) * (math.pow(adj_matrix[0][1], 2) + math.pow(adj_matrix[1][1], 2))
+        if (mapping):
+            # Numpy ws'.
+            n_ws_first = utilities.h_c_w_first(dimension ,
+                                               c_neighs  ,
+                                               adj_matrix,
+                                               logger    ,
+                                               log_file)
+            n_values = len(b_values)
+            # Temporary multipliers.
+            t_ms = [0] * n_values
+            # \"adj_matrix[0][0]\"...
+            A00 = adj_matrix[0][0]
+            # ...and so on.
+            A10 = adj_matrix[1][0]
+            A01 = adj_matrix[0][1]
+            A11 = adj_matrix[1][1]
+            # \"adj_matrix[0][0]\"^2...
+            A002 = A00 * A00
+            # ...and so on.
+            A102 = A10 * A10
+            A012 = A01 * A01
+            A112 = A11 * A11
+            # TODO: add coefficients^2 for 3D.
+            if (dimension == 3):
+                pass
+
+            for i in xrange(0, n_values):
+                w_first = n_ws_first[i]
+                w_first2 = w_first * w_first
+                codim = b_codim[i]
+                index = b_f_o_n[i] 
+                if (codim == 1):
+                    # Temporary multiplier.
+                    t_m = (A002 + A102) if ((index == 0) or (index == 1)) else \
+                          (A012 + A112)
+                # Codim == 2, so we are speaking about nodes.
                 else:
-                    if (b_f_o_n[i] == 0 or b_f_o_n[i] == 3):
-                        value_to_multiply = (2.0 / (4.0 * h2)) * math.pow(w_first, 2) * ((adj_matrix[0][0] * adj_matrix[0][1]) + 
-                                                                                               (adj_matrix[1][0] * adj_matrix[1][1]))
-                    else:
-                        value_to_multiply = (-2.0 / (4.0 * h2)) * math.pow(w_first, 2) * ((adj_matrix[0][0] * adj_matrix[0][1]) + 
-                                                                                                (adj_matrix[1][0] * adj_matrix[1][1]))
-                b_values[i] = b_values[i] * (-1.0 * value_to_multiply)
+                    t_m = (A00 * A01) + (A10 * A11)
+                    t_m = (t_m * 0.5) if ((index == 0) or (index == 3)) else \
+                          (t_m * (-0.5))
+                # TODO: Sum coefficients^2 for 3D.
+                if (dimension == 3):
+                    pass
+                t_m = (-1.0 / h2) * (w_first2 * t_m)
+                #b_values[i] = b_values[i] * t_m
+                t_ms[i] = t_m
+            b_values = map(lambda pair : (pair[0] * pair[1]), 
+                           zip(b_values, t_ms))
         else:
             b_values[:] = [b_value * (-1.0 / h2) for b_value in b_values]
    

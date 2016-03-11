@@ -51,6 +51,7 @@ class BaseClass2D(object):
                                               self.logger,
                                               type = "local")
         self._dim = kwargs["dimension"]
+        self._mapping = kwargs["mapping"]
 
         initialized = True
         try:
