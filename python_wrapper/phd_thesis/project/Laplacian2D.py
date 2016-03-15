@@ -476,7 +476,7 @@ class Laplacian2D(BaseClass2D.BaseClass2D):
                     # Temporary multiplier.
                     t_m = (A002 + A102) if ((index == 0) or (index == 1)) else \
                           (A012 + A112)
-                # Codim == 2, so we are speaking about nodes.
+                # Codim == 2, so we are speaking about nodes and not edges.
                 else:
                     t_m = (A00 * A01) + (A10 * A11)
                     t_m = (t_m * 0.5) if ((index == 0) or (index == 3)) else \
@@ -485,10 +485,13 @@ class Laplacian2D(BaseClass2D.BaseClass2D):
                 if (dimension == 3):
                     pass
                 t_m = (-1.0 / h2) * (w_first2 * t_m)
-                #b_values[i] = b_values[i] * t_m
-                t_ms[i] = t_m
-            b_values = map(lambda pair : (pair[0] * pair[1]), 
-                           zip(b_values, t_ms))
+                b_values[i] = b_values[i] * t_m
+                # The three following lines are just syntactic sugar to express
+                # some python's capabilities. But the previous one line is just
+                # faster. Tested personally on a list of 10000.
+                #t_ms[i] = t_m
+            #b_values = map(lambda pair : (pair[0] * pair[1]), 
+            #               zip(b_values, t_ms))
         else:
             b_values[:] = [b_value * (-1.0 / h2) for b_value in b_values]
    
