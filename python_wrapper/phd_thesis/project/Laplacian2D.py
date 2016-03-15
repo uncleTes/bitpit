@@ -547,7 +547,7 @@ class Laplacian2D(BaseClass2D.BaseClass2D):
     # --------------------------------------------------------------------------
 
     # --------------------------------------------------------------------------
-    # Apply mask to the octants, not bein considering the octants of the 
+    # Apply mask to the octants, not being considering the octants of the 
     # background grid covered by the ones of the foreground meshes.
     def mask_octant(self, 
                     g_octant):
@@ -569,6 +569,82 @@ class Laplacian2D(BaseClass2D.BaseClass2D):
         
         return m_g_octant
     # --------------------------------------------------------------------------
+
+    # --------------------------------------------------------------------------
+    def check_neighbours(self         ,
+                         codim        ,
+                         index        ,
+                         neighs       ,
+                         ghosts       ,
+                         octant       ,
+                         o_count      ,
+                         d_count      ,
+                         s_i          ,
+                         p_bound      ,
+                         h            ,
+                         key          ,
+                         octree       ,
+                         is_penalized ,
+                         is_background,
+                         logger       ,
+                         log_file):
+        # Check to know if a neighbour of an octant is penalized.
+        is_n_penalized = False
+        (neighs, ghosts) = octree.find_neighbours(octant, 
+                                                  index , 
+                                                  codim , 
+                                                  neighs, 
+                                                  ghosts)
+        # Empty lists in python are \"False\".
+        if ((codim == 2) and (not ghosts)):
+            return d_count, o_count, s_i
+
+        if not ghosts[0]:
+            index = octree.get_global_idx(neighs[0])
+            n_center = self._octree.get_center(neighs[0])[:2]
+        else:
+            index = self._octree.get_ghost_global_idx(neighs[0])
+            py_ghost_oct = self._octree.get_ghost_octant(neighs[0])
+            n_center = self._octree.get_center(py_ghost_oct, 
+                                               True)[:2]
+        if is_background:
+            # Is neighbour penalized.
+            is_n_penalized = utilities.check_oct_into_squares(n_center,
+                                          	              p_bound ,
+                                                              h       ,
+                                                              0.0     ,
+                                      	                      logger  ,
+                                      	                      log_file)
+        if not is_penalized:
+            if is_n_penalized:
+                # Being the neighbour penalized, it means that it 
+                # will be substituted by 4 octant being part of 
+                # the foreground grids, so being on the non diagonal
+                # part of the grid.
+                o_count += 4
+            else:
+                if ghosts[0]:
+                    o_count += 1
+                else:
+                    d_count += 1
+        else:
+            if not is_n_penalized:
+                stencil = self._edl.get(key)
+                stencil[s_i] = index
+                stencil[s_i + 1], stencil[s_i + 2] = n_center
+                stencil[s_i + 3] = codim
+                stencil[s_i + 4] = index
+                self._edl[key] = stencil
+                s_i += 5
+
+        msg = "Checked neighbour for "               + \
+              ("edge " if (codim == 1) else "node ") + \
+              str(index)
+        self.log_msg(msg   ,
+                     "info")
+
+        return d_count, o_count, s_i
+    # --------------------------------------------------------------------------
     
     # --------------------------------------------------------------------------
     # Creates masking system for the octants of the background grid covered by 
@@ -577,8 +653,7 @@ class Laplacian2D(BaseClass2D.BaseClass2D):
     # moment, this last count is exact for the background grid but for the 
     # foreground ones it consider the worst case (for the two levels gap).
     def create_mask(self, 
-                    o_n_oct = 0,
-                    matrix = None):
+                    o_n_oct = 0):
         """Method which creates the new octants' numerations and initialize non
            zero elements' number for row in the matrix of the system.
            
@@ -665,127 +740,76 @@ class Laplacian2D(BaseClass2D.BaseClass2D):
             s_i = 3
             # Nodes yet seen.
             n_y_s = set()
+            # Faces' loop.
             for face in xrange(0, nfaces):
-                # Check to know if a neighbour of an octant is penalized.
-                is_n_penalized = False
                 # Not boundary face.
                 if not self._octree.get_bound(py_oct, 
                                               face):
                     n_y_s.update(face_node[face][0:2])
-                    (neighs, ghosts) = octree.find_neighbours(octant, 
-                                                              face  , 
-                                                              1     , 
-                                                              neighs, 
-                                                              ghosts)
-                    if not ghosts[0]:
-                        index = octree.get_global_idx(neighs[0])
-                        n_center = self._octree.get_center(neighs[0])[:2]
-                    else:
-                        index = self._octree.get_ghost_global_idx(neighs[0])
-                        py_ghost_oct = self._octree.get_ghost_octant(neighs[0])
-                        n_center = self._octree.get_center(py_ghost_oct, 
-                                                         True)[:2]
-
-                    if is_background:
-                        # Is neighbour penalized.
-                        is_n_penalized = utilities.check_oct_into_squares(n_center,
-                                                      	                  p_bound ,
-                                                                          h       ,
-                                                                          0.0     ,
-                                                  	                  logger  ,
-                                                  	                  log_file)
-                    if not is_penalized:
-                        if is_n_penalized:
-                            # Being the neighbour penalized, it means that it 
-                            # will be substituted by 4 octant being part of 
-                            # the foreground grids, so being on the non diagonal
-                            # part of the grid.
-                            o_count += 4
-                        else:
-                            if ghosts[0]:
-                                o_count += 1
-                            else:
-                                d_count += 1
-                    else:
-                        if not is_n_penalized:
-                            stencil = self._edl.get(key)
-                            stencil[s_i] = index
-                            if matrix == None:
-                                stencil[s_i + 1], stencil[s_i + 2] = n_center
-                            else:
-                                stencil[s_i + 1], stencil[s_i + 2] = utilities.apply_persp_trans(2, n_center, matrix, logger, log_file)[0:2]
-                            stencil[s_i + 3] = 1 # codim
-                            stencil[s_i + 4] = face 
-                            self._edl[key] = stencil
-                            s_i += 5
+                    (d_count, 
+                     o_count, 
+                     s_i) = self.check_neighbours(1                            ,
+                                                  face                         ,
+                                                  neighs                       ,
+                                                  ghosts                       ,
+                                                  octant                       ,
+                                                  o_count                      ,
+                                                  d_count                      ,
+                                                  s_i                          ,
+                                                  p_bound                      ,
+                                                  h                            ,
+                                                  key if is_penalized else None,
+                                                  octree                       ,
+                                                  is_penalized                 ,
+                                                  is_background                ,
+                                                  logger                       ,
+                                                  log_file)
                 else:
+                    # Remove (if present) from set \"n_y_s\" the nodes on the
+                    # intersection between an edge on the boundary and an edge
+                    # not on the boundary.
+                    # Boundary nodes.
+                    b_ns =  face_node[face][0:2]
+                    for b_n in b_ns:
+                        n_y_s.discard(b_n)
                     # Adding elements for the octants of the background to use
                     # to interpolate stencil values for boundary conditions of 
                     # the octants of the foreground grid. 
                     if not is_background:
                         if not f_b_face:
                             o_count += 4
-                            o_count += 2 # For the neighbours of node
+                            # TODO: Control if this number is right.
+                            o_count += 4 # For the neighbours of node.
                             f_b_face = True 
                         else:
                             o_count += 3
-                            o_count += 2 # For the neighbours of node
-            #----------------------------------------------------------------
+                            # TODO: Control if this number is right.
+                            o_count += 2 # For the neighbours of node.
+            # Nodes' loop.
             for node in n_y_s:
-                is_n_penalized = False
-                (neighs, ghosts) = octree.find_neighbours(octant,
-                                                          node  ,
-                                                          2     ,
-                                                          neighs,
-                                                          ghosts)
-                # Empty lists in python are \"False\".
-                if (ghosts and neighs):
-                    if not ghosts[0]:
-                        index = octree.get_global_idx(neighs[0])
-                        n_center = self._octree.get_center(neighs[0])[:2]
-                    else:
-                        index = self._octree.get_ghost_global_idx(neighs[0])
-                        py_ghost_oct = self._octree.get_ghost_octant(neighs[0])
-                        n_center = self._octree.get_center(py_ghost_oct, 
-                                                         True)[:2]
-                    if is_background:
-                        # Is neighbour penalized.
-                        is_n_penalized = utilities.check_oct_into_squares(n_center,
-                                                      	                  p_bound ,
-                                                                          h       ,
-                                                                          0.0     ,
-                                              	                          logger  ,
-                                              	                          log_file)
-                    if not is_penalized:
-                        if is_n_penalized:
-                            # Being the neighbour penalized, it means that it 
-                            # will be substituted by 4 octant being part of 
-                            # the foreground grids, so being on the non diagonal
-                            # part of the grid.
-                            o_count += 4
-                        else:
-                            if ghosts[0]:
-                                o_count += 1
-                            else:
-                                d_count += 1
-                    else:
-                        if not is_n_penalized:
-                            stencil = self._edl.get(key)
-                            stencil[s_i] = index
-                            if matrix == None:
-                                stencil[s_i + 1], stencil[s_i + 2] = n_center
-                            else:
-                                stencil[s_i + 1], stencil[s_i + 2] = utilities.apply_persp_trans(2, n_center, matrix, logger, log_file)[0:2]
-                            stencil[s_i + 3] = 2 # codim
-                            stencil[s_i + 4] = node 
-                            self._edl[key] = stencil
-                            s_i += 5
-            #----------------------------------------------------------------
-        
+                (d_count, 
+                 o_count, 
+                 s_i) = self.check_neighbours(2                            ,
+                                              node                         ,
+                                              neighs                       ,
+                                              ghosts                       ,
+                                              octant                       ,
+                                              o_count                      ,
+                                              d_count                      ,
+                                              s_i                          ,
+                                              p_bound                      ,
+                                              h                            ,
+                                              key if is_penalized else None,
+                                              octree                       ,
+                                              is_penalized                 ,
+                                              is_background                ,
+                                              logger                       ,
+                                              log_file)
             if not is_penalized:
                 d_nnz.append(d_count)
                 o_nnz.append(o_count)
                 self._centers_not_penalized.append(center)
+
         self.spread_new_background_numeration(is_background)
 
         msg = "Created mask"
