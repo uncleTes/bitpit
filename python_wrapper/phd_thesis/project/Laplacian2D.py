@@ -922,10 +922,8 @@ class Laplacian2D(BaseClass2D.BaseClass2D):
                                             comm = comm_w)
         # If an element is being allocated in a place not preallocate, then 
         # the program will stop.
-        #self._b_mat.setOption(self._b_mat.Option.NEW_NONZERO_ALLOCATION_ERR, 
-        #                      True)
         self._b_mat.setOption(self._b_mat.Option.NEW_NONZERO_ALLOCATION_ERR, 
-                              False)
+                              True)
         
         o_ranges = self.get_ranges()
         for octant in xrange(0, n_oct):
