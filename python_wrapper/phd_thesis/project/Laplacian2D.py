@@ -712,7 +712,8 @@ class Laplacian2D(BaseClass2D.BaseClass2D):
         # diagonal part of the coefficients matrix, for row. 
         d_nnz, o_nnz = ([] for i in range(0, 2))
         new_oct_count = 0
-
+        dimension = self._dim
+        mapping = self._mapping
         # \"range\" gives us a list.
         octants = range(0, n_oct)
         g_octants = [octree.get_global_idx(octant) for octant in octants]
@@ -762,6 +763,8 @@ class Laplacian2D(BaseClass2D.BaseClass2D):
             s_i = 3
             # Nodes yet seen.
             n_y_s = set()
+            # Nodes to not see.
+            n_t_n_s = set()
             # Faces' loop.
             for face in xrange(0, nfaces):
                 # Not boundary face.
@@ -792,8 +795,7 @@ class Laplacian2D(BaseClass2D.BaseClass2D):
                     # not on the boundary.
                     # Boundary nodes.
                     b_ns =  face_node[face][0:2]
-                    for b_n in b_ns:
-                        n_y_s.discard(b_n)
+                    n_t_n_s.update(b_ns)
                     # Adding elements for the octants of the background to use
                     # to interpolate stencil values for boundary conditions of 
                     # the octants of the foreground grid. 
@@ -807,26 +809,29 @@ class Laplacian2D(BaseClass2D.BaseClass2D):
                             o_count += 3
                             # TODO: Control if this number is right.
                             o_count += 2 # For the neighbours of node.
-            # Nodes' loop.
-            for node in n_y_s:
-                (d_count, 
-                 o_count, 
-                 s_i) = self.check_neighbours(2                            ,
-                                              node                         ,
-                                              neighs                       ,
-                                              ghosts                       ,
-                                              octant                       ,
-                                              o_count                      ,
-                                              d_count                      ,
-                                              s_i                          ,
-                                              p_bound                      ,
-                                              h                            ,
-                                              key if is_penalized else None,
-                                              octree                       ,
-                                              is_penalized                 ,
-                                              is_background                ,
-                                              logger                       ,
-                                              log_file)
+            # New set with elements in \"n_y_s\" but not in \"n_t_n_s\". 
+            n_y_s = n_y_s.difference(n_t_n_s)
+            if (mapping):
+                # Nodes' loop.
+                for node in n_y_s:
+                    (d_count, 
+                     o_count, 
+                     s_i) = self.check_neighbours(2                            ,
+                                                  node                         ,
+                                                  neighs                       ,
+                                                  ghosts                       ,
+                                                  octant                       ,
+                                                  o_count                      ,
+                                                  d_count                      ,
+                                                  s_i                          ,
+                                                  p_bound                      ,
+                                                  h                            ,
+                                                  key if is_penalized else None,
+                                                  octree                       ,
+                                                  is_penalized                 ,
+                                                  is_background                ,
+                                                  logger                       ,
+                                                  log_file)
             if not is_penalized:
                 d_nnz.append(d_count)
                 o_nnz.append(o_count)
