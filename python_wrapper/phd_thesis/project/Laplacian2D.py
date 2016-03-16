@@ -979,7 +979,7 @@ class Laplacian2D(BaseClass2D.BaseClass2D):
             # Masked global octant.
             m_g_octant = self.mask_octant(g_octant)
             py_oct = octree.get_octant(octant)
-            center = octree.get_center(octant)[:2]
+            center = octree.get_center(octant)[:dimension]
             # Check to know if an octant on the background is penalized.
             is_penalized = False
             # Background grid.
@@ -992,17 +992,28 @@ class Laplacian2D(BaseClass2D.BaseClass2D):
                                                   	        log_file)
             if not is_penalized:
                 indices.append(m_g_octant)
-                if adj_matrix.all() == None:
-                    values.append((-4.0 / h2))
+                if (not mapping):
+                    # Temporary multiplier.
+                    t_m = -4.0
                 else:
-                    w_first = utilities.compute_w_first(logger, center, adj_matrix)
-                    value_to_append = (-2.0 / h2) * math.pow(w_first, 2) * (math.pow(adj_matrix[0][0], 2) + math.pow(adj_matrix[1][0], 2))
-                    value_to_append += (-2.0 / h2) * math.pow(w_first, 2) * (math.pow(adj_matrix[0][1], 2) + math.pow(adj_matrix[1][1], 2))
-                    values.append(value_to_append)
-                    #print(value_to_append)
-
+                    w_first = utilities.h_c_w_first(dimension ,
+                                                    # Doing a list of just one
+                                                    # list, to use numpy. For
+                                                    # example, with dimension 2
+                                                    #\"[center]\" will be 
+                                                    # \"[[x, y]]\".
+                                                    [center]  ,
+                                                    adj_matrix,
+                                                    logger    ,
+                                                    log_file)
+                    w_first2 = w_first * w_first
+                    t_m = (-2.0) * w_first2 * ((A002 + A102) + (A012 + A112))
+                value_to_append = t_m / h2
+                values.append(value_to_append)
                 # Nodes yet seen.
                 n_y_s = set()
+                # Nodes to not see.
+                n_t_n_s = set()
                 for face in xrange(0, nfaces):
                     if not octree.get_bound(py_oct, 
                                             face):
@@ -1030,14 +1041,25 @@ class Laplacian2D(BaseClass2D.BaseClass2D):
                         if not is_n_penalized:
                             indices.append(m_index)
                             if (not mapping):
-                                values.append(1.0 / h2)
+                                t_m = 1.0
                             else:
-                                #print((1.0 / h2) * math.pow(w_first, 2) * (math.pow(adj_matrix[0][0], 2) + math.pow(adj_matrix[1][0], 2)))
-                                w_first = utilities.compute_w_first(logger, n_center, adj_matrix)
-                                if (face  == 0 or face == 1):
-                                    values.append((1.0 / h2) * math.pow(w_first, 2) * (math.pow(adj_matrix[0][0], 2) + math.pow(adj_matrix[1][0], 2)))
-                                else:
-                                    values.append((1.0 / h2) * math.pow(w_first, 2) * (math.pow(adj_matrix[0][1], 2) + math.pow(adj_matrix[1][1], 2)))
+                                w_first = utilities.h_c_w_first(dimension ,
+                                                                [center]  ,
+                                                                adj_matrix,
+                                                                logger    ,
+                                                                log_file)
+                                w_first2 = w_first * w_first
+                                t_m = (A002 + A102) if ((face == 0) or \
+                                                        (face == 1)) else \
+                                      (A012 + A112)
+                                t_m = (1.0 * w_first2) * t_m
+                            value_to_append = t_m / h2
+                            values.append(value_to_append)
+                    else:
+                        b_ns =  face_node[face][0:2]
+                        n_t_n_s.update(b_ns)
+                # New set with elements in \"n_y_s\" but not in \"n_t_n_s\". 
+                n_y_s = n_y_s.difference(n_t_n_s)
                 if (mapping):
                     for node in n_y_s:
                         (m_index       , 
@@ -1059,25 +1081,19 @@ class Laplacian2D(BaseClass2D.BaseClass2D):
                                                            logger       ,
                                                            log_file     ,
                                                            yet_masked = True)
-                        if (n_center is not None):
-                            if not is_n_penalized:
-                                indices.append(m_index)
-                                w_first = utilities.compute_w_first(logger, n_center, adj_matrix)
-                                #print((2.0 / (4.0 * h2)) * math.pow(w_first, 2) * ((adj_matrix[0][0] * adj_matrix[0][1]) + 
-                                #                                                               (adj_matrix[1][0] * adj_matrix[1][1])))
-                                if (node == 0 or node == 3):
-                                    values.append((2.0 / (4.0 * h2)) * math.pow(w_first, 2) * ((adj_matrix[0][0] * adj_matrix[0][1]) + 
-                                                                                               (adj_matrix[1][0] * adj_matrix[1][1])))
-                                else:
-                                    values.append((-2.0 / (4.0 * h2)) * math.pow(w_first, 2) * ((adj_matrix[0][0] * adj_matrix[0][1]) + 
-                                                                                                (adj_matrix[1][0] * adj_matrix[1][1])))
-
-                #if is_background:
-                #    for i,v in enumerate(values):
-                #        if i == 0:
-                #            values[i] = 1.0
-                #        else:
-                #            values[i] = 0.0
+                        if not is_n_penalized:
+                            indices.append(m_index)
+                            w_first = utilities.h_c_w_first(dimension ,
+                                                            [center]  ,
+                                                            adj_matrix,
+                                                            logger    ,
+                                                            log_file)
+                            w_first2 = w_first * w_first
+                            t_m = w_first2 * ((A00 * A01) + (A10 * A11))
+                            t_m = (t_m * 0.5) if ((node == 0) or (node == 3)) \
+                                              else (t_m * (-0.5))
+                            value_to_append = (1.0 / h2) * t_m
+                            values.append(value_to_append)
                 self._b_mat.setValues(m_g_octant, # Row
                                       indices   , # Columns
                                       values)     # Values to be inserted
