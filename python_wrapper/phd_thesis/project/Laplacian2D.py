@@ -649,7 +649,7 @@ class Laplacian2D(BaseClass2D.BaseClass2D):
                     stencil[s_i] = index
                     stencil[s_i + 1], stencil[s_i + 2] = n_center
                     stencil[s_i + 3] = codim
-                    stencil[s_i + 4] = index
+                    stencil[s_i + 4] = f_o_n
                     self._edl[key] = stencil
                     s_i += 5
 
