@@ -402,11 +402,12 @@ class Laplacian2D(BaseClass2D.BaseClass2D):
                         b_centers.append(center)
                         b_codim.append(1)
                         n_y_s.update(face_node[face][0:2])
-                for node in n_y_s:
-                    b_indices.append(m_g_octant)
-                    b_f_o_n.append(node)
-                    b_centers.append(center)
-                    b_codim.append(2)
+                if (mapping):
+                    for node in n_y_s:
+                        b_indices.append(m_g_octant)
+                        b_f_o_n.append(node)
+                        b_centers.append(center)
+                        b_codim.append(2)
             
         (b_values, c_neighs) = self.eval_b_c(b_centers,
                                              b_f_o_n  ,
@@ -718,7 +719,7 @@ class Laplacian2D(BaseClass2D.BaseClass2D):
         octants = range(0, n_oct)
         g_octants = [octree.get_global_idx(octant) for octant in octants]
         py_octs = [octree.get_octant(octant) for octant in octants]
-        centers = [octree.get_center(octant)[:2] for octant in octants]         
+        centers = [octree.get_center(octant)[: dimension] for octant in octants]         
 
         for octant in octants:
             d_count, o_count = 0, 0
@@ -802,13 +803,15 @@ class Laplacian2D(BaseClass2D.BaseClass2D):
                     if not is_background:
                         if not f_b_face:
                             o_count += 4
-                            # TODO: Control if this number is right.
-                            o_count += 4 # For the neighbours of node.
+                            if (mapping):
+                                # TODO: Control if this number is right.
+                                o_count += 4 # For the neighbours of node.
                             f_b_face = True 
                         else:
                             o_count += 3
-                            # TODO: Control if this number is right.
-                            o_count += 2 # For the neighbours of node.
+                            if (mapping):
+                                # TODO: Control if this number is right.
+                                o_count += 2 # For the neighbours of node.
             # New set with elements in \"n_y_s\" but not in \"n_t_n_s\". 
             n_y_s = n_y_s.difference(n_t_n_s)
             if (mapping):
@@ -1561,12 +1564,13 @@ class Laplacian2D(BaseClass2D.BaseClass2D):
                                 # perfectly superposed??
                                 range(0, l_l_edg)]).reshape(l_l_edg, l_s)
         centers = [(stencils[i][1], stencils[i][2], 0) for i in range(0, l_l_edg)]
-        centers = [utilities.apply_persp_trans_inv(dimension            , 
-                                                   center[0 : dimension], 
-                                                   adj_matrix           , 
-                                                   logger               , 
-                                                   log_file) for \
-                   center in centers]
+        if (mapping):
+            centers = [utilities.apply_persp_trans_inv(dimension            , 
+                                                       center[0 : dimension], 
+                                                       adj_matrix           , 
+                                                       logger               , 
+                                                       log_file) for \
+                       center in centers]
         n_centers = len(centers)
         if (mapping):
             # Numpy ws'.
