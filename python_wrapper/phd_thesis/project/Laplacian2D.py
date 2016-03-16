@@ -1592,7 +1592,7 @@ class Laplacian2D(BaseClass2D.BaseClass2D):
                 pass
 
         for i in xrange (0, n_centers):
-            if (dimension == 2):
+            if ((dimension == 2) and (mapping)):
                 centers[i].append(0)
         # Vectorized functions are just syntactic sugar:
         # http://stackoverflow.com/questions/7701429/efficient-evaluation-of-a-function-at-every-cell-of-a-numpy-array
@@ -1683,9 +1683,14 @@ class Laplacian2D(BaseClass2D.BaseClass2D):
                 ids_octree_contained (list) : list of the indices of the octants
                                               contained in the current process."""
 
+	log_file = self.logger.handlers[0].baseFilename
+        logger = self.logger 
         octree = self._octree
         comm_l = self._comm
         time_rest_prol = 0
+        dimension = self._dim
+        mapping = self._mapping
+
         start = time.time()
         list_edg = list(self._n_edg)
         # Length list edg.
@@ -1699,21 +1704,47 @@ class Laplacian2D(BaseClass2D.BaseClass2D):
         h2s = keys[:, 4] * keys[:, 4]
         centers = numpy.array([list_edg[i][1] for i in 
                                range(0, l_l_edg)]).reshape(l_l_edg, l_s)
-        #centers = [utilities.apply_persp_trans_inv(self.logger, center[0:2], adj_matrix) for center in centers]
-        for i,v in enumerate(centers):
-            centers[i][0] = (centers[i][0]*2.0) - 0.25
+        n_centers = centers.shape[0]
+        if (mapping):
+            for i in xrange(0, n_centers):
+                centers[i][0] = (centers[i][0] * 2.0) - 0.25
         #TODO: understand why here we need to pass \"center[0:2]\" to the 
         # function \"get_point_ownner_dx\", while in the previous version of
         # PABLitO we passed all the array \"center\". I think that it is due to
         # the change of type of the input arguments from \"dvector\" to 
         # \"darray\".
-        local_idxs = numpy.array([octree.get_point_owner_idx((center[0], center[1], 0)) for 
+        local_idxs = numpy.array([octree.get_point_owner_idx((center[0], 
+                                                              center[1], 
+                                                              0)) for \
                                   center in centers])
         global_idxs = local_idxs + o_ranges[0]
         idxs = numpy.where(numpy.logical_and((global_idxs >= 
                                               ids_octree_contained[0]),
                                              (global_idxs <= 
                                               ids_octree_contained[1])))
+
+        if (mapping):
+            # Numpy ws'.
+            n_ws_first = utilities.h_c_w_first(dimension ,
+                                               centers   ,
+                                               adj_matrix,
+                                               logger    ,
+                                               log_file)
+            # \"adj_matrix[0][0]\"...
+            A00 = adj_matrix[0][0]
+            # ...and so on.
+            A10 = adj_matrix[1][0]
+            A01 = adj_matrix[0][1]
+            A11 = adj_matrix[1][1]
+            # \"adj_matrix[0][0]\"^2...
+            A002 = A00 * A00
+            # ...and so on.
+            A102 = A10 * A10
+            A012 = A01 * A01
+            A112 = A11 * A11
+            # TODO: add coefficients^2 for 3D.
+            if (dimension == 3):
+                pass
 
         for idx in idxs[0]:
             center_cell_container = octree.get_center(local_idxs[idx])[:2]
@@ -1738,38 +1769,30 @@ class Laplacian2D(BaseClass2D.BaseClass2D):
                     n_n_i.append(masked_index)
                 else:
                     n_n_i.append(index)
-            if adj_matrix.all() is not None:
+            if (mapping):
                 b_codim = int(keys[idx][3])
                 f_o_n = int(keys[idx][2])
                 h2 = h2s[idx]
-                #w_first = utilities.compute_w_first(self.logger, centers[idx][0:2], adj_matrix)
-                w_first = 0.5
-                if b_codim == 1:
-                    if (f_o_n == 0 or f_o_n == 1):
-                        value_to_multiply = (1.0 / h2) * math.pow(w_first, 2) * (math.pow(adj_matrix[0][0], 2) + math.pow(adj_matrix[1][0], 2))
-                    else:
-                        value_to_multiply = (1.0 / h2) * math.pow(w_first, 2) * (math.pow(adj_matrix[0][1], 2) + math.pow(2, 2))
-                    #value_to_multiply = 1.0/h2
+                w_first2 = 0.5 * 0.5
+                A112 = 2 * 2
+                if (b_codim == 1):
+                    t_m = (A002 + A102) if ((f_o_n == 0) or (f_o_n == 1)) \
+                                        else (A012 + A112)
+                    t_m = (1.0 * w_first2) * t_m
+                    value_to_multiply = t_m / h2
                 else:
-                    if (f_o_n == 0 or f_o_n == 3):
-                        value_to_multiply = (2.0 / (4.0 * h2)) * math.pow(w_first, 2) * ((adj_matrix[0][0] * adj_matrix[0][1]) + 
-                                                                                         (adj_matrix[1][0] * 2))
-                    else:
-                        value_to_multiply = (-2.0 / (4.0 * h2)) * math.pow(w_first, 2) * ((adj_matrix[0][0] * adj_matrix[0][1]) + 
-                                                                                          (adj_matrix[1][0] * 2))
-                #print(1.0/h2s[idx])
+                    t_m = w_first2 * ((A00 * A01) + (A10 * A11))
+                    t_m = (t_m * 0.5) if ((f_o_n == 0) or (f_o_n == 3)) \
+                                      else (t_m * (-0.5))
+                    value_to_multiply = (1.0 / h2) * t_m
                 bil_coeffs = [coeff * value_to_multiply for coeff in bil_coeffs]
             else:
                 bil_coeffs = [coeff * (1.0 / h2s[idx]) for coeff in bil_coeffs]
-            l_start = time.time()
             self.apply_rest_prol_ops(int(keys[idx][1]),
                                      n_n_i            ,
                                      bil_coeffs       ,
                                      neigh_centers)
-            l_end = time.time()
-            time_rest_prol += (l_end - l_start)
         end = time.time()
-        print("bg prolungation restriction " + str(time_rest_prol))
         print("bg update " + str(end - start))
 
         msg = "Updated restriction blocks"
