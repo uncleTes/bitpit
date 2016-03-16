@@ -1641,7 +1641,7 @@ class Laplacian2D(BaseClass2D.BaseClass2D):
                         t_m = (1.0 * w_first2) * t_m
                         value_to_multiply = t_m / h2
                         #print("value_to_multiply = " + str(value_to_multiply) + " 1/h2 = " + str(1.0/h2)) 
-                        #value_to_multiply = (1.0 / h2)
+                        value_to_multiply = (1.0 / h2)
                     elif (b_codim == 2):
                         t_m = w_first2 * ((A00 * A01) + (A10 * A11))
                         t_m = (t_m * 0.5) if ((f_o_n == 0) or (f_o_n == 3)) \
