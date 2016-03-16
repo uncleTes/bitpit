@@ -573,7 +573,7 @@ class Laplacian2D(BaseClass2D.BaseClass2D):
     # --------------------------------------------------------------------------
     def check_neighbours(self         ,
                          codim        ,
-                         index        ,
+                         f_o_n        ,
                          neighs       ,
                          ghosts       ,
                          octant       ,
@@ -587,26 +587,40 @@ class Laplacian2D(BaseClass2D.BaseClass2D):
                          is_penalized ,
                          is_background,
                          logger       ,
-                         log_file):
+                         log_file     ,
+                         yet_masked = False):
+        if (yet_masked):
+            oct_offset = o_count
+            o_ranges = d_count
         # Check to know if a neighbour of an octant is penalized.
         is_n_penalized = False
         (neighs, ghosts) = octree.find_neighbours(octant, 
-                                                  index , 
+                                                  f_o_n , 
                                                   codim , 
                                                   neighs, 
                                                   ghosts)
         # Empty lists in python are \"False\".
         if ((codim == 2) and (not ghosts)):
-            return d_count, o_count, s_i
+                return (d_count, o_count, s_i) if (not yet_masked) else \
+                       (None, None, None)
 
         if not ghosts[0]:
-            index = octree.get_global_idx(neighs[0])
-            n_center = self._octree.get_center(neighs[0])[:2]
+            if (yet_masked):
+                n_center = octree.get_center(neighs[0])[:2]
+                index = neighs[0] + o_ranges[0]
+                # Masked index.
+                m_index = self.mask_octant(index)
+            else:
+                index = octree.get_global_idx(neighs[0])
+                n_center = self._octree.get_center(neighs[0])[:2]
         else:
             index = self._octree.get_ghost_global_idx(neighs[0])
             py_ghost_oct = self._octree.get_ghost_octant(neighs[0])
             n_center = self._octree.get_center(py_ghost_oct, 
                                                True)[:2]
+            if (yet_masked):
+                m_index = self.mask_octant(index)
+                m_index = m_index + oct_offset
         if is_background:
             # Is neighbour penalized.
             is_n_penalized = utilities.check_oct_into_squares(n_center,
@@ -615,35 +629,43 @@ class Laplacian2D(BaseClass2D.BaseClass2D):
                                                               0.0     ,
                                       	                      logger  ,
                                       	                      log_file)
-        if not is_penalized:
-            if is_n_penalized:
-                # Being the neighbour penalized, it means that it 
-                # will be substituted by 4 octant being part of 
-                # the foreground grids, so being on the non diagonal
-                # part of the grid.
-                o_count += 4
-            else:
-                if ghosts[0]:
-                    o_count += 1
+        if (not yet_masked):
+            if not is_penalized:
+                if is_n_penalized:
+                    # Being the neighbour penalized, it means that it 
+                    # will be substituted by 4 octant being part of 
+                    # the foreground grids, so being on the non diagonal
+                    # part of the grid.
+                    o_count += 4
                 else:
-                    d_count += 1
+                    if ghosts[0]:
+                        o_count += 1
+                    else:
+                        d_count += 1
+            else:
+                if not is_n_penalized:
+                    stencil = self._edl.get(key)
+                    stencil[s_i] = index
+                    stencil[s_i + 1], stencil[s_i + 2] = n_center
+                    stencil[s_i + 3] = codim
+                    stencil[s_i + 4] = index
+                    self._edl[key] = stencil
+                    s_i += 5
+
+            extra_msg = ""
+
         else:
-            if not is_n_penalized:
-                stencil = self._edl.get(key)
-                stencil[s_i] = index
-                stencil[s_i + 1], stencil[s_i + 2] = n_center
-                stencil[s_i + 3] = codim
-                stencil[s_i + 4] = index
-                self._edl[key] = stencil
-                s_i += 5
+            extra_msg = "yet masked"
 
         msg = "Checked neighbour for "               + \
               ("edge " if (codim == 1) else "node ") + \
               str(index)
         self.log_msg(msg   ,
-                     "info")
-
-        return d_count, o_count, s_i
+                     "info",
+                     extra_msg)
+        
+        return (d_count, o_count, s_i) if (not yet_masked) else \
+               (m_index, is_n_penalized, n_center)
     # --------------------------------------------------------------------------
     
     # --------------------------------------------------------------------------
@@ -926,6 +948,25 @@ class Laplacian2D(BaseClass2D.BaseClass2D):
                               True)
         
         o_ranges = self.get_ranges()
+        dimension = self._dim
+        mapping = self._mapping
+        if (mapping):
+            # \"adj_matrix[0][0]\"...
+            A00 = adj_matrix[0][0]
+            # ...and so on.
+            A10 = adj_matrix[1][0]
+            A01 = adj_matrix[0][1]
+            A11 = adj_matrix[1][1]
+            # \"adj_matrix[0][0]\"^2...
+            A002 = A00 * A00
+            # ...and so on.
+            A102 = A10 * A10
+            A012 = A01 * A01
+            A112 = A11 * A11
+            # TODO: add coefficients^2 for 3D.
+            if (dimension == 3):
+                pass
+
         for octant in xrange(0, n_oct):
             indices, values = ([] for i in range(0, 2)) # Indices/values
             neighs, ghosts = ([] for i in range(0, 2))
@@ -958,40 +999,32 @@ class Laplacian2D(BaseClass2D.BaseClass2D):
                 # Nodes yet seen.
                 n_y_s = set()
                 for face in xrange(0, nfaces):
-                    is_n_penalized = False
                     if not octree.get_bound(py_oct, 
                                             face):
                         n_y_s.update(face_node[face][0:2])
-                        (neighs, ghosts) = octree.find_neighbours(octant, 
-                                                                  face  , 
-                                                                  1     , 
-                                                                  neighs, 
-                                                                  ghosts)
-
-                        if not ghosts[0]:
-                            n_center = octree.get_center(neighs[0])[:2]
-                            index = neighs[0] + o_ranges[0]
-                            # Masked index.
-                            m_index = self.mask_octant(index)
-                        else:
-                            index = octree.get_ghost_global_idx(neighs[0])
-                            py_ghost_oct = octree.get_ghost_octant(neighs[0])
-                            n_center = octree.get_center(py_ghost_oct, 
-                                                         True)[:2]
-                            m_index = self.mask_octant(index)
-                            m_index = m_index + oct_offset
                         
-                        if is_background:
-                            # Is neighbour penalized.
-                            is_n_penalized = utilities.check_oct_into_squares(n_center,
-                                                      	                      p_bound ,
-                                                                              h       ,
-                                                                              0.0     ,
-                                                      	                      logger  ,
-                                                      	                      log_file)
+                        (m_index       , 
+                         is_n_penalized,
+                         n_center) = self.check_neighbours(1                ,
+                                                           face             ,
+                                                           neighs           ,
+                                                           ghosts           ,
+                                                           octant           ,
+                                                           oct_offset       ,
+                                                           o_ranges         ,
+                                                           0                ,
+                                                           p_bound          ,
+                                                           h                ,
+                                                           None             ,
+                                                           octree           ,
+                                                           is_penalized     ,
+                                                           is_background    ,
+                                                           logger           ,
+                                                           log_file         ,
+                                                           yet_masked = True)
                         if not is_n_penalized:
                             indices.append(m_index)
-                            if adj_matrix.all() == None:
+                            if (not mapping):
                                 values.append(1.0 / h2)
                             else:
                                 #print((1.0 / h2) * math.pow(w_first, 2) * (math.pow(adj_matrix[0][0], 2) + math.pow(adj_matrix[1][0], 2)))
@@ -1000,37 +1033,28 @@ class Laplacian2D(BaseClass2D.BaseClass2D):
                                     values.append((1.0 / h2) * math.pow(w_first, 2) * (math.pow(adj_matrix[0][0], 2) + math.pow(adj_matrix[1][0], 2)))
                                 else:
                                     values.append((1.0 / h2) * math.pow(w_first, 2) * (math.pow(adj_matrix[0][1], 2) + math.pow(adj_matrix[1][1], 2)))
-                if (adj_matrix.all() is not None):
+                if (mapping):
                     for node in n_y_s:
-                        is_n_penalized = False
-                        (neighs, ghosts) = octree.find_neighbours(octant, 
-                                                                  node, 
-                                                                  2 , 
-                                                                  neighs, 
-                                                                  ghosts)
-                        # Empty lists in python are \"False\".
-                        if (ghosts and neighs):
-                            if not ghosts[0]:
-                                n_center = octree.get_center(neighs[0])[:2]
-                                index = neighs[0] + o_ranges[0]
-                                # Masked index.
-                                m_index = self.mask_octant(index)
-                            else:
-                                index = octree.get_ghost_global_idx(neighs[0])
-                                py_ghost_oct = octree.get_ghost_octant(neighs[0])
-                                n_center = octree.get_center(py_ghost_oct, 
-                                                         True)[:2]
-                                m_index = self.mask_octant(index)
-                                m_index = m_index + oct_offset
-                        
-                            if is_background:
-                                # Is neighbour penalized.
-                                is_n_penalized = utilities.check_oct_into_squares(n_center,
-                                                          	                  p_bound ,
-                                                                                  h       ,
-                                                                                  0.0     ,
-                                                          	                  logger  ,
-                                                          	                  log_file)
+                        (m_index       , 
+                         is_n_penalized,
+                         n_center) = self.check_neighbours(2            ,
+                                                           node         ,
+                                                           neighs       ,
+                                                           ghosts       ,
+                                                           octant       ,
+                                                           oct_offset   ,
+                                                           o_ranges     ,
+                                                           0            ,
+                                                           p_bound      ,
+                                                           h            ,
+                                                           None         ,
+                                                           octree       ,
+                                                           is_penalized ,
+                                                           is_background,
+                                                           logger       ,
+                                                           log_file     ,
+                                                           yet_masked = True)
+                        if (n_center is not None):
                             if not is_n_penalized:
                                 indices.append(m_index)
                                 w_first = utilities.compute_w_first(logger, n_center, adj_matrix)
