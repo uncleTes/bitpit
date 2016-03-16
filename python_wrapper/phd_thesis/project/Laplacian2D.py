@@ -979,7 +979,7 @@ class Laplacian2D(BaseClass2D.BaseClass2D):
             # Masked global octant.
             m_g_octant = self.mask_octant(g_octant)
             py_oct = octree.get_octant(octant)
-            center = octree.get_center(octant)[:dimension]
+            center = octree.get_center(octant)[: dimension]
             # Check to know if an octant on the background is penalized.
             is_penalized = False
             # Background grid.
@@ -1535,11 +1535,14 @@ class Laplacian2D(BaseClass2D.BaseClass2D):
                                               contained in the current process."""
 
 	log_file = self.logger.handlers[0].baseFilename
+        logger = self.logger 
         octree = self._octree
         comm_l = self._comm
         time_rest_prol = 0
-        start = time.time()
+        dimension = self._dim
+        mapping = self._mapping
 
+        start = time.time()
         list_edg = list(self._n_edg)
         if self._p_inter:
             list_edg = [list_edg[i] for i in range(0, len(list_edg)) if
@@ -1558,9 +1561,39 @@ class Laplacian2D(BaseClass2D.BaseClass2D):
                                 # perfectly superposed??
                                 range(0, l_l_edg)]).reshape(l_l_edg, l_s)
         centers = [(stencils[i][1], stencils[i][2], 0) for i in range(0, l_l_edg)]
-        centers = [utilities.apply_persp_trans_inv(2, center[0:2], adj_matrix, self.logger, log_file) for center in centers]
-        for i,v in enumerate(centers):
-            centers[i].append(0)
+        centers = [utilities.apply_persp_trans_inv(dimension            , 
+                                                   center[0 : dimension], 
+                                                   adj_matrix           , 
+                                                   logger               , 
+                                                   log_file) for \
+                   center in centers]
+        n_centers = len(centers)
+        if (mapping):
+            # Numpy ws'.
+            n_ws_first = utilities.h_c_w_first(dimension ,
+                                               centers   ,
+                                               adj_matrix,
+                                               logger    ,
+                                               log_file)
+            # \"adj_matrix[0][0]\"...
+            A00 = adj_matrix[0][0]
+            # ...and so on.
+            A10 = adj_matrix[1][0]
+            A01 = adj_matrix[0][1]
+            A11 = adj_matrix[1][1]
+            # \"adj_matrix[0][0]\"^2...
+            A002 = A00 * A00
+            # ...and so on.
+            A102 = A10 * A10
+            A012 = A01 * A01
+            A112 = A11 * A11
+            # TODO: add coefficients^2 for 3D.
+            if (dimension == 3):
+                pass
+
+        for i in xrange (0, n_centers):
+            if (dimension == 2):
+                centers[i].append(0)
         # Vectorized functions are just syntactic sugar:
         # http://stackoverflow.com/questions/7701429/efficient-evaluation-of-a-function-at-every-cell-of-a-numpy-array
         # http://stackoverflow.com/questions/8079061/function-application-over-numpys-matrix-row-column
@@ -1579,69 +1612,56 @@ class Laplacian2D(BaseClass2D.BaseClass2D):
         # to use the index notation.
         for idx in idxs[0]:
             #print(keys[idx])
-            center_cell_container = octree.get_center(local_idxs[idx])[:2]
-            location = utilities.points_location(centers[idx][0:2], 
+            center_cell_container = octree.get_center(local_idxs[idx])
+            center_cell_container = center_cell_container[: dimension]
+            location = utilities.points_location(centers[idx][0 : dimension], 
                                                  center_cell_container)
             neigh_centers, neigh_indices = ([] for i in range(0, 2)) 
             (neigh_centers, 
              neigh_indices)  = self.find_right_neighbours(location       ,
                                                           local_idxs[idx],
                                                           o_ranges[0])
-            #neigh_centers = [tuple(utilities.apply_persp_trans(center, matrix, self.logger)[0:2]) for center in neigh_centers]
-            bil_coeffs = utilities.bil_coeffs(centers[idx][0:2],
+            bil_coeffs = utilities.bil_coeffs(centers[idx][0 : dimension],
                                               neigh_centers)
 
-            if adj_matrix.all() is not None:
-                #print(stencils[idx])
+            if (mapping):
+                w_first2 = n_ws_first[idx] * n_ws_first[idx]
                 for i in range(6, len(stencils[idx]), 5):
                     b_codim = int(stencils[idx][i])
                     f_o_n = int(stencils[idx][i + 1])
                     row_index = int(stencils[idx][i - 3])
-                    #print(stencils[idx])
                     h2 = h2s[idx]
-                    w_first = utilities.compute_w_first(self.logger, centers[idx][0:2], adj_matrix)
-                    #print(w_first)
-                    if b_codim == 1:
-                        #print(centers[idx])
-                        #value_to_multiply = (1.0 / h2s[idx])
-                        if (f_o_n == 0 or f_o_n == 1):
-                            value_to_multiply = (1.0 / h2) * math.pow(w_first, 2) * (math.pow(adj_matrix[0][0], 2) + math.pow(adj_matrix[1][0], 2))
-                        else:
-                            value_to_multiply = (1.0 / h2) * math.pow(w_first, 2) * (math.pow(adj_matrix[0][1], 2) + math.pow(adj_matrix[1][1], 2))
-                        value_to_multiply = (1.0/h2)
-                    elif b_codim == 2:
-                        if (f_o_n == 0 or f_o_n == 3):
-                            value_to_multiply = (2.0 / (4.0 * h2)) * math.pow(w_first, 2) * ((adj_matrix[0][0] * adj_matrix[0][1]) + 
-                                                                                             (adj_matrix[1][0] * adj_matrix[1][1]))
-                        else:
-                            value_to_multiply = (-2.0 / (4.0 * h2)) * math.pow(w_first, 2) * ((adj_matrix[0][0] * adj_matrix[0][1]) + 
-                                                                                              (adj_matrix[1][0] * adj_matrix[1][1]))
-                    elif b_codim ==  -1:
+                    if (b_codim == 1):
+                        t_m = (A002 + A102) if ((f_o_n == 0) or (f_o_n == 1)) \
+                                            else (A012 + A112)
+                        t_m = (1.0 * w_first2) * t_m
+                        value_to_multiply = t_m / h2
+                        #print("value_to_multiply = " + str(value_to_multiply) + " 1/h2 = " + str(1.0/h2)) 
+                        #value_to_multiply = (1.0 / h2)
+                    elif (b_codim == 2):
+                        t_m = w_first2 * ((A00 * A01) + (A10 * A11))
+                        t_m = (t_m * 0.5) if ((f_o_n == 0) or (f_o_n == 3)) \
+                                          else (t_m * (-0.5))
+                        value_to_multiply = (1.0 / h2) * t_m
+                    elif (b_codim ==  -1):
                         break
-                    new_bil_coeffs = [coeff * value_to_multiply for coeff in bil_coeffs]
-                    #for i,v in enumerate(neigh_indices):
-                    #    neigh_indices[i] = neigh_indices[i] - 4
-                    #print(neigh_indices)
-                    #print("multiply " + str(value_to_multiply))
-                    self.apply_rest_prol_ops(row_index  ,
-                                             neigh_indices,
-                                             new_bil_coeffs   ,
+                    new_bil_coeffs = [coeff * value_to_multiply for coeff in \
+                                                                    bil_coeffs]
+                    self.apply_rest_prol_ops(row_index     ,
+                                             neigh_indices ,
+                                             new_bil_coeffs,
                                              neigh_centers)
             else:
                 bil_coeffs = [coeff * (1.0 / h2s[idx]) for coeff in bil_coeffs]
 
                 row_indices = [int(octant) for octant in stencils[idx][3::5]]
 
-                l_start = time.time()
                 self.apply_rest_prol_ops(row_indices  ,
                                          neigh_indices,
                                          bil_coeffs   ,
                                          neigh_centers)
-                l_end = time.time()
-                time_rest_prol += (l_end - l_start)
-                end = time.time()
-                print("fg prolungation restriction " + str(time_rest_prol))
-                print("fg update " + str(end - start))
+        end = time.time()
+        print("fg update " + str(end - start))
 
         msg = "Updated prolongation blocks"
         self.log_msg(msg   ,
