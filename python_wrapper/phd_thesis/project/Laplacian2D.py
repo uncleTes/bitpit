@@ -268,6 +268,12 @@ class Laplacian2D(BaseClass2D.BaseClass2D):
 
         edges_or_nodes = []
         just_one_neighbour = False
+        mapping = self._mapping
+        proc_grid = self._proc_g
+        if (mapping):
+            current_trans_dict = self.get_trans(proc_grid)
+        else:
+            current_trans_dict = numpy.array(None)
         if (codim is None):
             for i in xrange(0, len(centers)):
                 # Evaluating boundary conditions for edges.
@@ -286,9 +292,13 @@ class Laplacian2D(BaseClass2D.BaseClass2D):
             c_neighs.append(c_neigh)
         x_s = [c_neigh[0] for c_neigh in c_neighs] 
         y_s = [c_neigh[1] for c_neigh in c_neighs]
-
+        
         boundary_values = ExactSolution2D.ExactSolution2D.solution(x_s, 
-                                                   		   y_s)
+                                                   		   y_s,
+                                                                   None,
+                                                                   mapping = current_trans_dict,
+                                                                   use_mapping = mapping)
+                                                                   #mapping = numpy.array(None))
 
         msg = "Evaluated boundary conditions"
         if just_one_neighbour: 
@@ -354,8 +364,7 @@ class Laplacian2D(BaseClass2D.BaseClass2D):
 
     # --------------------------------------------------------------------------
     # Set boundary conditions.
-    def set_b_c(self,
-                adj_matrix):
+    def set_b_c(self):
         """Method which set boundary conditions for the different grids."""
     
 	log_file = self.logger.handlers[0].baseFilename
@@ -417,6 +426,20 @@ class Laplacian2D(BaseClass2D.BaseClass2D):
         # Grids not of the background: equal to number >= 1.
         if grid:
             for i, center in enumerate(c_neighs):
+                #if (mapping):
+                #    current_trans_dict = self.get_trans(grid)
+                #    background_trans_dict_adj = self.get_trans_adj(0) 
+                #    center = utilities.apply_persp_trans(dimension            , 
+                #                                         list(center[0 : dimension]), 
+                #                                         current_trans_dict  ,
+                #                                         logger              ,  
+                #                                         log_file)[0 : dimension]
+                #    center = utilities.apply_persp_trans_inv(dimension            , 
+                #                                             list(center[0 : dimension]), 
+                #                                             background_trans_dict_adj  ,
+                #                                             logger              ,  
+                #                                             log_file)[0 : dimension]
+                #    center = tuple(center)
                 # Check if foreground grid is inside the background one.
                 check = utilities.check_oct_into_square(center     ,
                                             	        b_bound    ,
@@ -443,21 +466,22 @@ class Laplacian2D(BaseClass2D.BaseClass2D):
                     b_values[i] = 0.0
 	 
         if (mapping):
+            current_trans_dict_adj = self.get_trans_adj(grid) 
             # Numpy ws'.
-            n_ws_first = utilities.h_c_w_first(dimension ,
-                                               c_neighs  ,
-                                               adj_matrix,
-                                               logger    ,
+            n_ws_first = utilities.h_c_w_first(dimension             ,
+                                               c_neighs              ,
+                                               current_trans_dict_adj,
+                                               logger                ,
                                                log_file)
             n_values = len(b_values)
             # Temporary multipliers.
             t_ms = [0] * n_values
             # \"adj_matrix[0][0]\"...
-            A00 = adj_matrix[0][0]
+            A00 = current_trans_dict_adj[0][0]
             # ...and so on.
-            A10 = adj_matrix[1][0]
-            A01 = adj_matrix[0][1]
-            A11 = adj_matrix[1][1]
+            A10 = current_trans_dict_adj[1][0]
+            A01 = current_trans_dict_adj[0][1]
+            A11 = current_trans_dict_adj[1][1]
             # \"adj_matrix[0][0]\"^2...
             A002 = A00 * A00
             # ...and so on.
@@ -910,7 +934,6 @@ class Laplacian2D(BaseClass2D.BaseClass2D):
     # Initialize diagonal matrices of the block matrix.
     def init_mat(self              ,
                  (e_d_nnz, e_o_nnz),
-                 adj_matrix        ,
                  o_n_oct = 0):
         """Method which initialize the diagonal parts of the monolithic matrix 
            of the system.
@@ -953,18 +976,19 @@ class Laplacian2D(BaseClass2D.BaseClass2D):
         # If an element is being allocated in a place not preallocate, then 
         # the program will stop.
         self._b_mat.setOption(self._b_mat.Option.NEW_NONZERO_ALLOCATION_ERR, 
-                              True)
+                              False)
         
         o_ranges = self.get_ranges()
         dimension = self._dim
         mapping = self._mapping
         if (mapping):
+            current_trans_dict_adj = self.get_trans_adj(grid) 
             # \"adj_matrix[0][0]\"...
-            A00 = adj_matrix[0][0]
+            A00 = current_trans_dict_adj[0][0]
             # ...and so on.
-            A10 = adj_matrix[1][0]
-            A01 = adj_matrix[0][1]
-            A11 = adj_matrix[1][1]
+            A10 = current_trans_dict_adj[1][0]
+            A01 = current_trans_dict_adj[0][1]
+            A11 = current_trans_dict_adj[1][1]
             # \"adj_matrix[0][0]\"^2...
             A002 = A00 * A00
             # ...and so on.
@@ -1005,9 +1029,9 @@ class Laplacian2D(BaseClass2D.BaseClass2D):
                                                     # example, with dimension 2
                                                     #\"[center]\" will be 
                                                     # \"[[x, y]]\".
-                                                    [center]  ,
-                                                    adj_matrix,
-                                                    logger    ,
+                                                    [center]              ,
+                                                    current_trans_dict_adj,
+                                                    logger                ,
                                                     log_file)
                     w_first2 = w_first * w_first
                     t_m = (-2.0) * w_first2 * ((A002 + A102) + (A012 + A112))
@@ -1046,10 +1070,10 @@ class Laplacian2D(BaseClass2D.BaseClass2D):
                             if (not mapping):
                                 t_m = 1.0
                             else:
-                                w_first = utilities.h_c_w_first(dimension ,
-                                                                [center]  ,
-                                                                adj_matrix,
-                                                                logger    ,
+                                w_first = utilities.h_c_w_first(dimension             ,
+                                                                [center]              ,
+                                                                current_trans_dict_adj,
+                                                                logger                ,
                                                                 log_file)
                                 w_first2 = w_first * w_first
                                 t_m = (A002 + A102) if ((face == 0) or \
@@ -1086,10 +1110,10 @@ class Laplacian2D(BaseClass2D.BaseClass2D):
                                                            yet_masked = True)
                         if not is_n_penalized:
                             indices.append(m_index)
-                            w_first = utilities.h_c_w_first(dimension ,
-                                                            [center]  ,
-                                                            adj_matrix,
-                                                            logger    ,
+                            w_first = utilities.h_c_w_first(dimension             ,
+                                                            [center]              ,
+                                                            current_trans_dict_adj,
+                                                            logger                ,
                                                             log_file)
                             w_first2 = w_first * w_first
                             t_m = w_first2 * ((A00 * A01) + (A10 * A11))
@@ -1423,8 +1447,7 @@ class Laplacian2D(BaseClass2D.BaseClass2D):
     # Creating the restriction and prolongation blocks inside the monolithic 
     # matrix of the system.
     def update_values(self                , 
-                      intercomm_dictionary,
-                      adj_matrix):
+                      intercomm_dictionary):
         """Method wich update the system matrix.
 
            Arguments:
@@ -1505,12 +1528,10 @@ class Laplacian2D(BaseClass2D.BaseClass2D):
             mpi_request.Wait(status)
         if not is_background:
             self.update_fg_grids(o_ranges,
-                                 ids_octree_contained,
-                                 adj_matrix)
+                                 ids_octree_contained)
         else:
             self.update_bg_grids(o_ranges,
-                                 ids_octree_contained,
-                                 adj_matrix)
+                                 ids_octree_contained)
         
         self.assembly_petsc_struct("matrix",
                                    PETSc.Mat.AssemblyType.FINAL_ASSEMBLY)
@@ -1526,8 +1547,7 @@ class Laplacian2D(BaseClass2D.BaseClass2D):
     # Sub_method of \"update_values\".
     def update_fg_grids(self                ,
                         o_ranges            ,
-                        ids_octree_contained,
-                        adj_matrix):
+                        ids_octree_contained):
         """Method which update the non diagonal blocks relative to the 
            foreground grids.
 
@@ -1544,6 +1564,12 @@ class Laplacian2D(BaseClass2D.BaseClass2D):
         time_rest_prol = 0
         dimension = self._dim
         mapping = self._mapping
+        proc_grid = self._proc_g
+        if (mapping):
+            background_trans_dict = self.get_trans(0)
+            background_trans_dict_adj = self.get_trans_adj(0)
+            current_trans_dict = self.get_trans(proc_grid)
+            current_trans_dict_adj = self.get_trans_adj(proc_grid) 
 
         start = time.time()
         list_edg = list(self._n_edg)
@@ -1565,10 +1591,16 @@ class Laplacian2D(BaseClass2D.BaseClass2D):
                                 range(0, l_l_edg)]).reshape(l_l_edg, l_s)
         centers = [(stencils[i][1], stencils[i][2], 0) for i in range(0, l_l_edg)]
         if (mapping):
-            centers = [utilities.apply_persp_trans_inv(dimension            , 
-                                                       center[0 : dimension], 
-                                                       adj_matrix           , 
-                                                       logger               , 
+            centers = [utilities.apply_persp_trans(dimension            , 
+                                                   center[0 : dimension], 
+                                                   background_trans_dict,
+                                                   logger               ,  
+                                                   log_file) for \
+                       center in centers]
+            centers = [utilities.apply_persp_trans_inv(dimension             , 
+                                                       center[0 : dimension] , 
+                                                       current_trans_dict_adj,
+                                                       logger                ,  
                                                        log_file) for \
                        center in centers]
         n_centers = len(centers)
@@ -1576,15 +1608,15 @@ class Laplacian2D(BaseClass2D.BaseClass2D):
             # Numpy ws'.
             n_ws_first = utilities.h_c_w_first(dimension ,
                                                centers   ,
-                                               adj_matrix,
+                                               background_trans_dict_adj,
                                                logger    ,
                                                log_file)
             # \"adj_matrix[0][0]\"...
-            A00 = adj_matrix[0][0]
+            A00 = background_trans_dict_adj[0][0]
             # ...and so on.
-            A10 = adj_matrix[1][0]
-            A01 = adj_matrix[0][1]
-            A11 = adj_matrix[1][1]
+            A10 = background_trans_dict_adj[1][0]
+            A01 = background_trans_dict_adj[0][1]
+            A11 = background_trans_dict_adj[1][1]
             # \"adj_matrix[0][0]\"^2...
             A002 = A00 * A00
             # ...and so on.
@@ -1641,7 +1673,7 @@ class Laplacian2D(BaseClass2D.BaseClass2D):
                         t_m = (1.0 * w_first2) * t_m
                         value_to_multiply = t_m / h2
                         #print("value_to_multiply = " + str(value_to_multiply) + " 1/h2 = " + str(1.0/h2)) 
-                        value_to_multiply = (1.0 / h2)
+                        #value_to_multiply = (1.0 / h2)
                     elif (b_codim == 2):
                         t_m = w_first2 * ((A00 * A01) + (A10 * A11))
                         t_m = (t_m * 0.5) if ((f_o_n == 0) or (f_o_n == 3)) \
@@ -1676,8 +1708,7 @@ class Laplacian2D(BaseClass2D.BaseClass2D):
     # Sub_method of \"update_values\".
     def update_bg_grids(self                ,
                         o_ranges            ,
-                        ids_octree_contained,
-                        adj_matrix):
+                        ids_octree_contained):
         """Method which update the non diagonal blocks relative to the 
            backgrounds grids.
 
@@ -1694,6 +1725,10 @@ class Laplacian2D(BaseClass2D.BaseClass2D):
         time_rest_prol = 0
         dimension = self._dim
         mapping = self._mapping
+        proc_grid = self._proc_g
+        if (mapping):
+            current_trans_dict = self.get_trans(proc_grid)
+            current_trans_dict_adj = self.get_trans_adj(proc_grid) 
 
         start = time.time()
         list_edg = list(self._n_edg)
@@ -1711,7 +1746,19 @@ class Laplacian2D(BaseClass2D.BaseClass2D):
         n_centers = centers.shape[0]
         if (mapping):
             for i in xrange(0, n_centers):
-                centers[i][0] = (centers[i][0] * 2.0) - 0.25
+                foreground_trans_dict = self.get_trans(keys[i][0])
+                centers[i][0 : dimension] = \
+                utilities.apply_persp_trans(dimension                , 
+                                            centers[i][0 : dimension], 
+                                            foreground_trans_dict    ,
+                                            logger                   ,  
+                                            log_file)[0: dimension]
+                centers[i][0 : dimension] = \
+                utilities.apply_persp_trans_inv(dimension                , 
+                                                centers[i][0 : dimension], 
+                                                current_trans_dict_adj   ,
+                                                logger                   ,  
+                                                log_file)[0 : dimension]
         #TODO: understand why here we need to pass \"center[0:2]\" to the 
         # function \"get_point_ownner_dx\", while in the previous version of
         # PABLitO we passed all the array \"center\". I think that it is due to
@@ -1727,30 +1774,31 @@ class Laplacian2D(BaseClass2D.BaseClass2D):
                                              (global_idxs <= 
                                               ids_octree_contained[1])))
 
-        if (mapping):
-            # Numpy ws'.
-            n_ws_first = utilities.h_c_w_first(dimension ,
-                                               centers   ,
-                                               adj_matrix,
-                                               logger    ,
-                                               log_file)
-            # \"adj_matrix[0][0]\"...
-            A00 = adj_matrix[0][0]
-            # ...and so on.
-            A10 = adj_matrix[1][0]
-            A01 = adj_matrix[0][1]
-            A11 = adj_matrix[1][1]
-            # \"adj_matrix[0][0]\"^2...
-            A002 = A00 * A00
-            # ...and so on.
-            A102 = A10 * A10
-            A012 = A01 * A01
-            A112 = A11 * A11
-            # TODO: add coefficients^2 for 3D.
-            if (dimension == 3):
-                pass
-
         for idx in idxs[0]:
+            if (mapping):
+                foreground_trans_dict_adj = self.get_trans_adj(keys[i][0])
+                # Numpy ws'.
+                n_ws_first = utilities.h_c_w_first(dimension                ,
+                                                   [centers[idx]]           ,
+                                                   foreground_trans_dict_adj,
+                                                   logger                   ,
+                                                   log_file)
+                # \"adj_matrix[0][0]\"...
+                A00 = foreground_trans_dict_adj[0][0]
+                # ...and so on.
+                A10 = foreground_trans_dict_adj[1][0]
+                A01 = foreground_trans_dict_adj[0][1]
+                A11 = foreground_trans_dict_adj[1][1]
+                # \"adj_matrix[0][0]\"^2...
+                A002 = A00 * A00
+                # ...and so on.
+                A102 = A10 * A10
+                A012 = A01 * A01
+                A112 = A11 * A11
+                # TODO: add coefficients^2 for 3D.
+                if (dimension == 3):
+                    pass
+                
             center_cell_container = octree.get_center(local_idxs[idx])[:2]
             location = utilities.points_location(centers[idx],
                                                  center_cell_container)
@@ -1777,8 +1825,7 @@ class Laplacian2D(BaseClass2D.BaseClass2D):
                 b_codim = int(keys[idx][3])
                 f_o_n = int(keys[idx][2])
                 h2 = h2s[idx]
-                w_first2 = 0.5 * 0.5
-                A112 = 2 * 2
+                w_first2 = n_ws_first * n_ws_first
                 if (b_codim == 1):
                     t_m = (A002 + A102) if ((f_o_n == 0) or (f_o_n == 1)) \
                                         else (A012 + A112)
@@ -2022,6 +2069,11 @@ class Laplacian2D(BaseClass2D.BaseClass2D):
 
         grid = self._proc_g
         is_background = True
+        mapping = self._mapping
+        if (mapping):
+            current_trans_dict = self.get_trans(grid)
+        else:
+            current_trans_dict = numpy.array(None)
         if grid:
             is_background = False
             numpy_row_indices = numpy.array(row_indices)
@@ -2037,8 +2089,13 @@ class Laplacian2D(BaseClass2D.BaseClass2D):
             # solution is evaluated.
             if index == "outside_bg":
                 to_rhs.append(i)
+                print("UAOHHHHHHHHHH")
                 e_sol = ExactSolution2D.ExactSolution2D.solution(centers[i][0],
-                                                                 centers[i][1])
+                                                                 centers[i][1],
+                                                                 None,
+                                                                 mapping = current_trans_dict,
+                                                                 use_mapping = False)
+                                                                 #use_mapping = mapping)
                 e_sols.append(e_sol)
 
         for i in range(0, n_rows):

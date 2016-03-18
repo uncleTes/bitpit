@@ -391,14 +391,13 @@ def compute(comm_dictionary     ,
                                                                  log_file)
         t_coeffs = trans_dictionary[proc_grid]
         t_coeffs_adj = trans_adj_dictionary[proc_grid]
-
+        laplacian.init_trans_dict(trans_dictionary)
+        laplacian.init_trans_adj_dict(trans_adj_dictionary)
     (d_nnz, o_nnz) = laplacian.create_mask(o_n_oct = 0)
     laplacian.init_sol()
 
     laplacian.init_mat((d_nnz, o_nnz)           , 
-                       adj_matrix = t_coeffs_adj,
-                       o_n_oct = 0              , 
-    )
+                       o_n_oct = 0              )
     not_penalized_centers = laplacian.not_pen_centers
     # Physical centers.
     if mapping:
@@ -426,14 +425,14 @@ def compute(comm_dictionary     ,
 
     exact_solution.e_sol(n_p_centers[:, 0], 
                          n_p_centers[:, 1],
-                         n_p_centers[:, 2] if (dimension == 3) else None)
+                         n_p_centers[:, 2] if (dimension == 3) else None,
+                         numpy.array(None))
     exact_solution.e_s_der(n_p_centers[:, 0], 
                            n_p_centers[:, 1],
                            n_p_centers[:, 2] if (dimension == 3) else None)
     laplacian.init_rhs(exact_solution.s_der)
-    laplacian.set_b_c(adj_matrix = t_coeffs_adj)
-    laplacian.update_values(intercomm_dictionary, 
-                            adj_matrix = t_coeffs_adj)
+    laplacian.set_b_c()
+    laplacian.update_values(intercomm_dictionary)
     laplacian.solve()
     (norm_inf, norm_L2) = laplacian.evaluate_norms(exact_solution.sol,
                                                    laplacian.sol.getArray())
@@ -452,7 +451,8 @@ def compute(comm_dictionary     ,
     n_p_centers = numpy.array(p_centers)
     exact_solution.e_sol(n_p_centers[:, 0], 
                          n_p_centers[:, 1],
-                         n_p_centers[:, 2] if (dimension == 3) else None)
+                         n_p_centers[:, 2] if (dimension == 3) else None,
+                         numpy.array(None))
     data_to_save = numpy.array([exact_solution.sol,
                                 interpolate_sol.getArray()])
 
