@@ -656,7 +656,8 @@ def apply_persp_trans(dimension   ,
     np_point = numpy.append(np_point, 1)
     # Transformed point.
     t_point = None
-    logger = check_null_logger(logger, log_file)
+    if log_file is not None:
+        logger = check_null_logger(logger, log_file)
     try:
         # Number of columns equal to number of rows.
         assert (np_point.shape[0] == coefficients.shape[0]), \
@@ -674,7 +675,8 @@ def apply_persp_trans(dimension   ,
         t_point = np_t_point.tolist()
     except AssertionError:
         msg_err = sys.exc_info()[1]
-        logger.error(msg_err)
+        if log_file is not None:
+            logger.error(msg_err)
     finally:
         return t_point
 # ------------------------------------------------------------------------------
