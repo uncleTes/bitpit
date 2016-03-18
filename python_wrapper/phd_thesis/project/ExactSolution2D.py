@@ -3,6 +3,8 @@
 import sys
 import BaseClass2D
 import numpy
+import utilities
+import copy
 # ------------------------------------------------------------------------------
 
 # ------------------------------------------------------------------------------
@@ -22,9 +24,11 @@ class ExactSolution2D(BaseClass2D.BaseClass2D):
     # Exact solution = sin((x - 0.5)^2 + (y - 0.5)^2).
     # http://stackoverflow.com/questions/136097/what-is-the-difference-between-staticmethod-and-classmethod-in-python
     @staticmethod
-    def solution(x, 
-                 y,
-                 z = None):
+    def solution(x       , 
+                 y       ,
+                 z       ,
+                 mapping ,
+                 use_mapping = False):
         """Static method which returns the solution:  
            sin((x - 0.5)^2 + (y - 0.5)^2).
            
@@ -35,8 +39,45 @@ class ExactSolution2D(BaseClass2D.BaseClass2D):
            Returns:
                a numpy vector with the solution."""
 
-        return numpy.sin(numpy.power(numpy.array(x) - 0.5, 2) + 
-                         numpy.power(numpy.array(y) - 0.5, 2))
+        dim = 2
+        log_file = None
+        logger = None
+        x_n = copy.deepcopy(x)
+        y_n = copy.deepcopy(y)
+        x_t = []
+        if (use_mapping):
+            if (type(x) is not list):
+                values = utilities.apply_persp_trans(2     , 
+                                                     (x_n, y_n), 
+                                                     mapping ,
+                                                     logger  ,
+                                                     log_file)
+                x_n = values[0]
+                y_n = values[1]
+                x_t.append(x_n - x)
+                #print(x_t)
+            else:
+                n_x = len(x)
+                for i in xrange(0, n_x):
+                    #print("prima " + str((x_n[i], y_n[i])))
+                    values = utilities.apply_persp_trans(dim           , 
+                                                         (x_n[i], y_n[i]), 
+                                                         mapping       ,
+                                                         logger        ,
+                                                         log_file)
+                    #print("dopo " + str(values))
+                    x_n[i] = values[0]
+                    y_n[i] = values[1]
+                    x_t.append(x_n[i] - x[i])
+
+        
+            #print("dopo" + str(x_t))
+        else:
+            pass
+            #print("BELLA PADELLA")
+
+        return numpy.sin(numpy.power(numpy.array(x_n) - 0.5, 2) + 
+                         numpy.power(numpy.array(y_n) - 0.5, 2))
 
     # Solution second derivative = 4 * cos((x - 0.5)^2 + (y - 0.5)^2) - 
     #                              4 * sin((x - 0.5)^2 + (y - 0.5)^2) *
@@ -121,10 +162,12 @@ class ExactSolution2D(BaseClass2D.BaseClass2D):
                                                              -4))))
     
     # Evaluate solution.
-    def e_sol(self, 
-              x   , 
-              y   ,
-              z = None):
+    def e_sol(self   , 
+              x      , 
+              y      ,
+              z      ,
+              mapping,
+              use_mapping = False):
         """Method which evaluates the solution. It calls the method \"solution\"
            to obtain it; at a first glance can appear useless, but it has the
            capability to be independent from the exact solution, so for the
@@ -148,9 +191,11 @@ class ExactSolution2D(BaseClass2D.BaseClass2D):
         # same size.
         try:
             assert len(x) == len(y)
-            sol = ExactSolution2D.solution(x, 
-                                           y,
-                                           z)
+            sol = ExactSolution2D.solution(x      , 
+                                           y      ,
+                                           z      ,
+                                           mapping,
+                                           use_mapping)
             msg = "Evaluated exact solution "
             extra_msg = "\":\n" + str(sol)
             self.log_msg(msg   ,
