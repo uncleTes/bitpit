@@ -115,6 +115,22 @@ class BaseClass2D(object):
             self.logger.info(log_msg)
         elif level == "error":
             self.logger.error(log_msg)
+
+    def init_trans_dict(self,
+                        kwargs = {}):
+        self._trans_dict = kwargs
+    
+    def init_trans_adj_dict(self,
+                            kwargs = {}):
+        self._trans_adj_dict = kwargs
+
+    def get_trans(self,
+                  grid):
+        return self._trans_dict[grid]
+    
+    def get_trans_adj(self,
+                      grid):
+        return self._trans_adj_dict[grid]
     
     # http://stackoverflow.com/questions/15458613/python-why-is-read-only-property-writable
     # https://docs.python.org/2/library/functions.html#property
