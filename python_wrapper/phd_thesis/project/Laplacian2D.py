@@ -2075,13 +2075,12 @@ class Laplacian2D(BaseClass2D.BaseClass2D):
             # solution is evaluated.
             if index == "outside_bg":
                 to_rhs.append(i)
-                print("UAOHHHHHHHHHH")
                 e_sol = ExactSolution2D.ExactSolution2D.solution(centers[i][0],
                                                                  centers[i][1],
                                                                  None,
                                                                  mapping = current_trans_dict,
-                                                                 use_mapping = False)
-                                                                 #use_mapping = mapping)
+                                                                 #use_mapping = False)
+                                                                 use_mapping = mapping)
                 e_sols.append(e_sol)
 
         for i in range(0, n_rows):
