@@ -426,20 +426,20 @@ class Laplacian2D(BaseClass2D.BaseClass2D):
         # Grids not of the background: equal to number >= 1.
         if grid:
             for i, center in enumerate(c_neighs):
-                #if (mapping):
-                #    current_trans_dict = self.get_trans(grid)
-                #    background_trans_dict_adj = self.get_trans_adj(0) 
-                #    center = utilities.apply_persp_trans(dimension            , 
-                #                                         list(center[0 : dimension]), 
-                #                                         current_trans_dict  ,
-                #                                         logger              ,  
-                #                                         log_file)[0 : dimension]
-                #    center = utilities.apply_persp_trans_inv(dimension            , 
-                #                                             list(center[0 : dimension]), 
-                #                                             background_trans_dict_adj  ,
-                #                                             logger              ,  
-                #                                             log_file)[0 : dimension]
-                #    center = tuple(center)
+                if (mapping):
+                    current_trans_dict = self.get_trans(grid)
+                    background_trans_dict_adj = self.get_trans_adj(0) 
+                    center = utilities.apply_persp_trans(dimension            , 
+                                                         list(center[0 : dimension]), 
+                                                         current_trans_dict  ,
+                                                         logger              ,  
+                                                         log_file)[0 : dimension]
+                    center = utilities.apply_persp_trans_inv(dimension            , 
+                                                             list(center[0 : dimension]), 
+                                                             background_trans_dict_adj  ,
+                                                             logger              ,  
+                                                             log_file)[0 : dimension]
+                    center = tuple(center)
                 # Check if foreground grid is inside the background one.
                 check = utilities.check_oct_into_square(center     ,
                                             	        b_bound    ,
@@ -1744,21 +1744,21 @@ class Laplacian2D(BaseClass2D.BaseClass2D):
         centers = numpy.array([list_edg[i][1] for i in 
                                range(0, l_l_edg)]).reshape(l_l_edg, l_s)
         n_centers = centers.shape[0]
-        if (mapping):
-            for i in xrange(0, n_centers):
-                foreground_trans_dict = self.get_trans(keys[i][0])
-                centers[i][0 : dimension] = \
-                utilities.apply_persp_trans(dimension                , 
-                                            centers[i][0 : dimension], 
-                                            foreground_trans_dict    ,
-                                            logger                   ,  
-                                            log_file)[0: dimension]
-                centers[i][0 : dimension] = \
-                utilities.apply_persp_trans_inv(dimension                , 
-                                                centers[i][0 : dimension], 
-                                                current_trans_dict_adj   ,
-                                                logger                   ,  
-                                                log_file)[0 : dimension]
+        #if (mapping):
+        #    for i in xrange(0, n_centers):
+        #        foreground_trans_dict = self.get_trans(keys[i][0])
+        #        centers[i][0 : dimension] = \
+        #        utilities.apply_persp_trans(dimension                , 
+        #                                    centers[i][0 : dimension], 
+        #                                    foreground_trans_dict    ,
+        #                                    logger                   ,  
+        #                                    log_file)[0: dimension]
+        #        centers[i][0 : dimension] = \
+        #        utilities.apply_persp_trans_inv(dimension                , 
+        #                                        centers[i][0 : dimension], 
+        #                                        current_trans_dict_adj   ,
+        #                                        logger                   ,  
+        #                                        log_file)[0 : dimension]
         #TODO: understand why here we need to pass \"center[0:2]\" to the 
         # function \"get_point_ownner_dx\", while in the previous version of
         # PABLitO we passed all the array \"center\". I think that it is due to
@@ -1769,6 +1769,7 @@ class Laplacian2D(BaseClass2D.BaseClass2D):
                                                               0)) for \
                                   center in centers])
         global_idxs = local_idxs + o_ranges[0]
+
         idxs = numpy.where(numpy.logical_and((global_idxs >= 
                                               ids_octree_contained[0]),
                                              (global_idxs <= 
