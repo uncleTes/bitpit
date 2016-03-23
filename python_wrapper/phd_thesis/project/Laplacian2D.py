@@ -1744,21 +1744,6 @@ class Laplacian2D(BaseClass2D.BaseClass2D):
         centers = numpy.array([list_edg[i][1] for i in 
                                range(0, l_l_edg)]).reshape(l_l_edg, l_s)
         n_centers = centers.shape[0]
-        #if (mapping):
-        #    for i in xrange(0, n_centers):
-        #        foreground_trans_dict = self.get_trans(keys[i][0])
-        #        centers[i][0 : dimension] = \
-        #        utilities.apply_persp_trans(dimension                , 
-        #                                    centers[i][0 : dimension], 
-        #                                    foreground_trans_dict    ,
-        #                                    logger                   ,  
-        #                                    log_file)[0: dimension]
-        #        centers[i][0 : dimension] = \
-        #        utilities.apply_persp_trans_inv(dimension                , 
-        #                                        centers[i][0 : dimension], 
-        #                                        current_trans_dict_adj   ,
-        #                                        logger                   ,  
-        #                                        log_file)[0 : dimension]
         #TODO: understand why here we need to pass \"center[0:2]\" to the 
         # function \"get_point_ownner_dx\", while in the previous version of
         # PABLitO we passed all the array \"center\". I think that it is due to
