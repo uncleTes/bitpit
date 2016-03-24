@@ -457,7 +457,7 @@ class Laplacian2D(BaseClass2D.BaseClass2D):
                            b_codim[i]  , # Boundary codimension
                            h)            # Edge's length
                     # We store the center of the cell on the boundary.
-                    self._edl.update({key : (center + ((-1,) * 26) if \
+                    self._edl.update({key : (center + ((-1,) * 41) if \
                                              self._p_inter else center)})
                     # The new corresponding value inside \"b_values\" would be
                     # \"0.0\", because the boundary value is given by the 
@@ -614,6 +614,8 @@ class Laplacian2D(BaseClass2D.BaseClass2D):
                          logger       ,
                          log_file     ,
                          yet_masked = False):
+        dimension = self._dim
+        mapping = self._mapping
         if (yet_masked):
             oct_offset = o_count
             o_ranges = d_count
@@ -647,8 +649,23 @@ class Laplacian2D(BaseClass2D.BaseClass2D):
                 m_index = self.mask_octant(index)
                 m_index = m_index + oct_offset
         if is_background:
+            if (mapping):
+                current_trans_dict = self.get_trans(0)
+                foreground_trans_dict_adj = self.get_trans_adj(1)
+                t_center = utilities.apply_persp_trans(dimension            , 
+                                                     n_center, 
+                                                     current_trans_dict  ,
+                                                     logger              ,  
+                                                     log_file)[0 : dimension]
+                t_center = utilities.apply_persp_trans_inv(dimension            , 
+                                                         t_center, 
+                                                         foreground_trans_dict_adj  ,
+                                                         logger              ,  
+                                                         log_file)[0 : dimension]
+            else:
+                t_center = n_center
             # Is neighbour penalized.
-            is_n_penalized = utilities.check_oct_into_squares(n_center,
+            is_n_penalized = utilities.check_oct_into_squares(t_center,
                                           	              p_bound ,
                                                               h       ,
                                                               0.0     ,
@@ -671,7 +688,7 @@ class Laplacian2D(BaseClass2D.BaseClass2D):
                 if not is_n_penalized:
                     stencil = self._edl.get(key)
                     stencil[s_i] = index
-                    stencil[s_i + 1], stencil[s_i + 2] = n_center
+                    stencil[s_i + 1], stencil[s_i + 2] = t_center
                     stencil[s_i + 3] = codim
                     stencil[s_i + 4] = f_o_n
                     self._edl[key] = stencil
@@ -755,7 +772,22 @@ class Laplacian2D(BaseClass2D.BaseClass2D):
             is_penalized = False
             # Background grid.
             if is_background:
-                is_penalized = utilities.check_oct_into_squares(center ,
+                if (mapping):
+                    current_trans_dict = self.get_trans(0)
+                    foreground_trans_dict_adj = self.get_trans_adj(1)
+                    t_center = utilities.apply_persp_trans(dimension            , 
+                                                         center, 
+                                                         current_trans_dict  ,
+                                                         logger              ,  
+                                                         log_file)[0 : dimension]
+                    t_center = utilities.apply_persp_trans_inv(dimension            , 
+                                                             t_center, 
+                                                             foreground_trans_dict_adj  ,
+                                                             logger              ,  
+                                                             log_file)[0 : dimension]
+                else:
+                    t_center = center
+                is_penalized = utilities.check_oct_into_squares(t_center ,
                                                   	        p_bound,
                                                                 h      ,
                                                                 0.0    ,
@@ -774,9 +806,9 @@ class Laplacian2D(BaseClass2D.BaseClass2D):
                 # of the foreground grid owning the penalized one.
                 # TODO: 12 or 16 instead of 9 for grid not perfectly 
                 # superposed?
-                stencil = [-1] * 28
+                stencil = [-1] * 43
                 stencil[0] = g_octant
-                stencil[1], stencil[2] = center
+                stencil[1], stencil[2] = t_center
                 self._edl.update({key : stencil})
             else:
                 self._nln[octant] = new_oct_count
@@ -1011,13 +1043,29 @@ class Laplacian2D(BaseClass2D.BaseClass2D):
             is_penalized = False
             # Background grid.
             if is_background:
-                is_penalized = utilities.check_oct_into_squares(center ,
+                if (mapping):
+                    current_trans_dict = self.get_trans(0)
+                    foreground_trans_dict_adj = self.get_trans_adj(1)
+                    t_center = utilities.apply_persp_trans(dimension            , 
+                                                         center, 
+                                                         current_trans_dict  ,
+                                                         logger              ,  
+                                                         log_file)[0 : dimension]
+                    t_center = utilities.apply_persp_trans_inv(dimension            , 
+                                                             t_center, 
+                                                             foreground_trans_dict_adj  ,
+                                                             logger              ,  
+                                                             log_file)[0 : dimension]
+                else:
+                    t_center = center
+                is_penalized = utilities.check_oct_into_squares(t_center ,
                                                   	        p_bound,
                                                                 h      ,
                                                                 0.0    ,
                                                   	        logger ,
                                                   	        log_file)
             if not is_penalized:
+                #print(m_g_octant)
                 indices.append(m_g_octant)
                 if (not mapping):
                     # Temporary multiplier.
@@ -1358,6 +1406,7 @@ class Laplacian2D(BaseClass2D.BaseClass2D):
                           max_it = PETSc.DEFAULT) # Let's PETSc use DEAFULT
         ksp.setFromOptions()
         # Solve the system.
+        #self._b_mat.view()
         ksp.solve(self._rhs, 
                   self._sol)
         # How many iterations are done.
@@ -1406,26 +1455,26 @@ class Laplacian2D(BaseClass2D.BaseClass2D):
         # between grids of different levels.
         self._n_edg = None
         if not is_background:
-            self._d_type_s = numpy.dtype('(1, 5)f8, (1, 28)f8') if self._p_inter\
+            self._d_type_s = numpy.dtype('(1, 5)f8, (1, 43)f8') if self._p_inter\
                              else numpy.dtype('(1, 5)f8, (1, 2)f8')
-            blocks_length_s = [5, 28] if self._p_inter else [5, 2]
+            blocks_length_s = [5, 43] if self._p_inter else [5, 2]
             blocks_displacement_s = [0, 40]
             mpi_datatypes = [MPI.DOUBLE,
                              MPI.DOUBLE]
-            self._d_type_r = numpy.dtype('(1, 5)f8, (1, 28)f8') if self._p_inter\
-                             else numpy.dtype('(1, 3)f8, (1, 28)f8')
-            blocks_length_r = [5, 28] if self._p_inter else [3, 28]
+            self._d_type_r = numpy.dtype('(1, 5)f8, (1, 43)f8') if self._p_inter\
+                             else numpy.dtype('(1, 3)f8, (1, 43)f8')
+            blocks_length_r = [5, 43] if self._p_inter else [3, 43]
             blocks_displacement_r = [0, 40] if self._p_inter else [0, 24]
         else:
-            self._d_type_s = numpy.dtype('(1, 5)f8, (1, 28)f8') if self._p_inter\
-                             else numpy.dtype('(1, 3)f8, (1, 28)f8')
-            blocks_length_s = [5, 28] if self._p_inter else [3, 28]
+            self._d_type_s = numpy.dtype('(1, 5)f8, (1, 43)f8') if self._p_inter\
+                             else numpy.dtype('(1, 3)f8, (1, 43)f8')
+            blocks_length_s = [5, 43] if self._p_inter else [3, 43]
             blocks_displacement_s = [0, 40] if self._p_inter else [0, 24]
             mpi_datatypes = [MPI.DOUBLE,
                              MPI.DOUBLE]
-            self._d_type_r = numpy.dtype('(1, 5)f8, (1, 28)f8') if self._p_inter\
+            self._d_type_r = numpy.dtype('(1, 5)f8, (1, 43)f8') if self._p_inter\
                              else numpy.dtype('(1, 5)f8, (1,2)f8')
-            blocks_length_r = [5, 28] if self._p_inter else [5, 2]
+            blocks_length_r = [5, 43] if self._p_inter else [5, 2]
             blocks_displacement_r = [0, 40]
         # MPI data type to send.
         self._mpi_d_t_s = MPI.Datatype.Create_struct(blocks_length_s      ,
@@ -1590,19 +1639,19 @@ class Laplacian2D(BaseClass2D.BaseClass2D):
                                 # perfectly superposed??
                                 range(0, l_l_edg)]).reshape(l_l_edg, l_s)
         centers = [(stencils[i][1], stencils[i][2], 0) for i in range(0, l_l_edg)]
-        if (mapping):
-            centers = [utilities.apply_persp_trans(dimension            , 
-                                                   center[0 : dimension], 
-                                                   background_trans_dict,
-                                                   logger               ,  
-                                                   log_file) for \
-                       center in centers]
-            centers = [utilities.apply_persp_trans_inv(dimension             , 
-                                                       center[0 : dimension] , 
-                                                       current_trans_dict_adj,
-                                                       logger                ,  
-                                                       log_file) for \
-                       center in centers]
+        #if (mapping):
+        #    centers = [utilities.apply_persp_trans(dimension            , 
+        #                                           center[0 : dimension], 
+        #                                           background_trans_dict,
+        #                                           logger               ,  
+        #                                           log_file) for \
+        #               center in centers]
+        #    centers = [utilities.apply_persp_trans_inv(dimension             , 
+        #                                               center[0 : dimension] , 
+        #                                               current_trans_dict_adj,
+        #                                               logger                ,  
+        #                                               log_file) for \
+        #               center in centers]
         n_centers = len(centers)
         if (mapping):
             # Numpy ws'.
@@ -1627,9 +1676,9 @@ class Laplacian2D(BaseClass2D.BaseClass2D):
             if (dimension == 3):
                 pass
 
-        for i in xrange (0, n_centers):
-            if ((dimension == 2) and (mapping)):
-                centers[i].append(0)
+        #for i in xrange (0, n_centers):
+        #    if ((dimension == 2) and (mapping)):
+        #        centers[i].append(0)
         # Vectorized functions are just syntactic sugar:
         # http://stackoverflow.com/questions/7701429/efficient-evaluation-of-a-function-at-every-cell-of-a-numpy-array
         # http://stackoverflow.com/questions/8079061/function-application-over-numpys-matrix-row-column
