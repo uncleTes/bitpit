@@ -15,8 +15,8 @@ import time
 # ------------------------------------------------------------------------------
 
 # ------------------------------------------------------------------------------
-class Laplacian2D(BaseClass2D.BaseClass2D):   
-    """Class which evaluates the laplacian onto a 2D grid.
+class Laplacian(BaseClass2D.BaseClass2D):   
+    """Class which evaluates the laplacian onto a grid.
     
     Attributes:
         _comm (MPI.Intracomm) : intracommunicator which identify the
@@ -47,7 +47,7 @@ class Laplacian2D(BaseClass2D.BaseClass2D):
     # --------------------------------------------------------------------------
     def __init__(self, 
                  kwargs = {}):
-        """Initialization method for the \"Laplacian2D\" class.
+        """Initialization method for the \"Laplacian\" class.
 
         Arguments:
             kwargs (dictionary) : it must contains the following keys (in 
@@ -61,7 +61,7 @@ class Laplacian2D(BaseClass2D.BaseClass2D):
                                  \"f_bound\" or \"b_bound\" are \"None\"."""
 
         # http://stackoverflow.com/questions/19205916/how-to-call-base-classs-init-method-from-the-child-class
-        super(Laplacian2D, self).__init__(kwargs)
+        super(Laplacian, self).__init__(kwargs)
         # If some arguments are not presents, function \"setdefault\" will set 
         # them to the default value.
         # Penalization.
@@ -125,38 +125,66 @@ class Laplacian2D(BaseClass2D.BaseClass2D):
         # and inside the local one.
         self._rank_w = self._comm_w.Get_rank()
         self._rank = self._comm.Get_rank()
-        # Initializing exchanged structures.
+        if (self._mapping):
+            t_points = kwargs.setdefault("transformed points", None)
+            if (not t_points):
+                msg = "\"MPI Abort\" called during initialization "
+                extra_msg = " Transformed points with mapping \"True\" are " + \
+                            "not initialized. Please check your \"config file\"."
+                self.log_msg(msg    , 
+                             "error",
+                             extra_msg)
+	        self._comm_w.Abort(1)
+            # Transformed background.
+            self._t_background = [] 
+            # Transformed polygons.
+            self._t_foregrounds = []
+            for i, polygon in enumerate(t_points):
+                # Temporary transformed points.
+                t_t_points = []
+                n_coordinates = len(polygon)
+                #TODO: modify to do 3D!!
+                for j in xrange(0, n_coordinates, 3):
+                    t_t_points.append([polygon[j], polygon[j + 1]])
+                    j += 2
+                if (i == 0):
+                    self._t_background = t_t_points
+                else:
+                    self._t_foregrounds.append(t_t_points)
+            # Initializing exchanged structures.
         self.init_e_structures()
     # --------------------------------------------------------------------------
    
     # --------------------------------------------------------------------------
     # Returns the center of the face neighbour.
-    def neighbour_centers(self           ,
-                          _centers       ,
-                          _edges_or_nodes,
-                          _values):
+    # TODO: modify this function to be used in 3D case.
+    def neighbour_centers(self   ,
+                          # Centers.
+                          cs     ,
+                          # Edges or nodes.
+                          es_o_ns,
+                          # Values.
+                          vs):
         """Function which returns the centers of neighbours, depending on 
            for which face we are interested into.
            
            Arguments:
-               _centers (tuple or list of tuple) : coordinates of the centers 
-                                                   of the current octree.
-               _edges_or_nodes (int between 1 and 2 or list) : numbers
-                                                               indicating if 
-                                                               the neighbour 
-                                                               is from edge 
-                                                               or node.
-               _values (int between 0 and 3 or list) : faces for which we are  
-                                                       interested into knowing
-                                                       the neighbour's center.
+               cs (tuple or list of tuple) : coordinates of the centers of 
+                                             the current octree.
+               es_o_ns (int between 1 and 2 or list) : numbers indicating if the 
+                                                       neighbour is from edge or 
+                                                       node.
+               vs (int between 0 and 3 or list) : faces for which we are 
+                                                  interested into knowing the 
+                                                  neighbour's center.
                                             
            Returns:
                a tuple or a list containing the centers evaluated."""
 
         h = self._h
-        centers = _centers
-        values = _values
-        edges_or_nodes = _edges_or_nodes        
+        centers = cs
+        values = vs
+        edges_or_nodes = es_o_ns        
         # Checking if passed arguments are lists or not. If not, we have to do
         # something.
         try:
@@ -270,10 +298,12 @@ class Laplacian2D(BaseClass2D.BaseClass2D):
         just_one_neighbour = False
         mapping = self._mapping
         proc_grid = self._proc_g
+        dimension = self._dim
         if (mapping):
-            current_trans_dict = self.get_trans(proc_grid)
+            # Current transformation matrix's dictionary.
+            c_t_dict = self.get_trans(proc_grid)
         else:
-            current_trans_dict = numpy.array(None)
+            c_t_dict = None
         if (codim is None):
             for i in xrange(0, len(centers)):
                 # Evaluating boundary conditions for edges.
@@ -292,13 +322,16 @@ class Laplacian2D(BaseClass2D.BaseClass2D):
             c_neighs.append(c_neigh)
         x_s = [c_neigh[0] for c_neigh in c_neighs] 
         y_s = [c_neigh[1] for c_neigh in c_neighs]
+        if (dimension == 3):
+            z_s = [c_neigh[2] for c_neigh in c_neighs]
+        else:
+            z_s = None
         
-        boundary_values = ExactSolution2D.ExactSolution2D.solution(x_s, 
-                                                   		   y_s,
-                                                                   None,
-                                                                   mapping = current_trans_dict,
-                                                                   use_mapping = mapping)
-                                                                   #mapping = numpy.array(None))
+        boundary_values = ExactSolution2D.ExactSolution2D.solution(x_s     , 
+                                                   		   y_s     ,
+                                                                   z_s     ,
+                                                                   c_t_dict,
+                                                                   mapping)
 
         msg = "Evaluated boundary conditions"
         if just_one_neighbour: 
@@ -308,7 +341,7 @@ class Laplacian2D(BaseClass2D.BaseClass2D):
 
         return (boundary_values, c_neighs)
     # --------------------------------------------------------------------------
-
+    
     # --------------------------------------------------------------------------
     # Get octants's ranges for processes, considering also the ones masked by
     # the foreground grids, whom PETSc does not count using 
@@ -361,7 +394,7 @@ class Laplacian2D(BaseClass2D.BaseClass2D):
 
         return new_ranges
     # --------------------------------------------------------------------------
-
+    
     # --------------------------------------------------------------------------
     # Set boundary conditions.
     def set_b_c(self):
@@ -389,8 +422,9 @@ class Laplacian2D(BaseClass2D.BaseClass2D):
             is_background = False
 
         b_indices, b_values = ([] for i in range(0, 2))# Boundary indices/values
-        b_centers, b_f_o_n = ([] for i in range(0, 2)) # Boundary centers/faces or nodes
-        b_codim = []
+        b_centers, b_f_o_n = ([] for i in range(0, 2)) # Boundary centers/faces 
+                                                       # or nodes
+        b_codim = [] # Boundary codimensions
         for octant in xrange(0, n_oct):
             # Global index of the current local octant \"octant\".
             g_octant = o_ranges[0] + octant
@@ -398,7 +432,7 @@ class Laplacian2D(BaseClass2D.BaseClass2D):
             # Check if the octant is not penalized.
             if (m_g_octant != -1):
                 py_oct = self._octree.get_octant(octant)
-                center  = self._octree.get_center(octant)[:2]
+                center  = self._octree.get_center(octant)[: dimension]
 
                 # Nodes yet seen. Using Python \"sets\" to avoid duplicates.
                 n_y_s = set()
@@ -410,7 +444,7 @@ class Laplacian2D(BaseClass2D.BaseClass2D):
                         b_f_o_n.append(face)
                         b_centers.append(center)
                         b_codim.append(1)
-                        n_y_s.update(face_node[face][0:2])
+                        n_y_s.update(face_node[face][0 : 2])
                 if (mapping):
                     for node in n_y_s:
                         b_indices.append(m_g_octant)
@@ -425,28 +459,39 @@ class Laplacian2D(BaseClass2D.BaseClass2D):
 	b_values = b_values.tolist()
         # Grids not of the background: equal to number >= 1.
         if grid:
+            if (mapping):
+                # Current transformation matrix's dictionary.
+                c_t_dict = self.get_trans(grid)
+                # Background transformation matrix adjoint's dictionary.
+                b_t_adj_dict = self.get_trans_adj(0)
+                t_background = self._t_background
             for i, center in enumerate(c_neighs):
-                if (mapping):
-                    current_trans_dict = self.get_trans(grid)
-                    background_trans_dict_adj = self.get_trans_adj(0) 
-                    center = utilities.apply_persp_trans(dimension            , 
-                                                         list(center[0 : dimension]), 
-                                                         current_trans_dict  ,
-                                                         logger              ,  
-                                                         log_file)[0 : dimension]
-                    center = utilities.apply_persp_trans_inv(dimension            , 
-                                                             list(center[0 : dimension]), 
-                                                             background_trans_dict_adj  ,
-                                                             logger              ,  
-                                                             log_file)[0 : dimension]
-                    center = tuple(center)
+                check = False
                 # Check if foreground grid is inside the background one.
-                check = utilities.check_oct_into_square(center     ,
-                                            	        b_bound    ,
-                                                        h          ,
-                                                        0.0        ,
-                                          	        self.logger,
-                                          	        log_file)
+                if (mapping):
+                    # Mapping logic center into the physical one... 
+                    center = utilities.apply_persp_trans(dimension          , 
+                                                         center[: dimension], 
+                                                         c_t_dict           ,
+                                                         logger             ,  
+                                                         log_file)[: dimension]
+                    check = utilities.is_point_inside_polygon(center      ,
+                                                              t_background,
+                                                              logger      ,
+                                                              log_file)
+                    # ...going back to the logical one.
+                    center = utilities.apply_persp_trans_inv(dimension          , 
+                                                             center[: dimension], 
+                                                             b_t_adj_dict       ,
+                                                             logger             ,  
+                                                             log_file)[: dimension]
+                else:
+                    check = utilities.check_oct_into_square(center     ,
+                                                	    b_bound    ,
+                                                            h          ,
+                                                            0.0        ,
+                                              	            self.logger,
+                                              	            log_file)
                 if check:
                     # Can't use list as dictionary's keys.
                     # http://stackoverflow.com/questions/7257588/why-cant-i-use-a-list-as-a-dict-key-in-python
@@ -457,8 +502,12 @@ class Laplacian2D(BaseClass2D.BaseClass2D):
                            b_codim[i]  , # Boundary codimension
                            h)            # Edge's length
                     # We store the center of the cell on the boundary.
-                    self._edl.update({key : (center + ((-1,) * 41) if \
-                                             self._p_inter else center)})
+                    t_value = tuple(center)
+                    n_mask = 41
+                    stencil = (t_value + ((-1,) * (n_mask if (dimension == 2)\
+                                                          else (n_mask - 1)))\
+                               if (self._p_inter) else t_value)
+                    self._edl.update({key : stencil})
                     # The new corresponding value inside \"b_values\" would be
                     # \"0.0\", because the boundary value is given by the 
                     # coefficients of the bilinear operator in the \"extension\"
@@ -466,22 +515,23 @@ class Laplacian2D(BaseClass2D.BaseClass2D):
                     b_values[i] = 0.0
 	 
         if (mapping):
-            current_trans_dict_adj = self.get_trans_adj(grid) 
+            # Current transformation adjoint matrix's dictionary.
+            c_t_adj_dict = self.get_trans_adj(grid) 
             # Numpy ws'.
-            n_ws_first = utilities.h_c_w_first(dimension             ,
-                                               c_neighs              ,
-                                               current_trans_dict_adj,
-                                               logger                ,
+            n_ws_first = utilities.h_c_w_first(dimension   ,
+                                               c_neighs    ,
+                                               c_t_adj_dict,
+                                               logger      ,
                                                log_file)
             n_values = len(b_values)
             # Temporary multipliers.
             t_ms = [0] * n_values
             # \"adj_matrix[0][0]\"...
-            A00 = current_trans_dict_adj[0][0]
+            A00 = c_t_adj_dict[0][0]
             # ...and so on.
-            A10 = current_trans_dict_adj[1][0]
-            A01 = current_trans_dict_adj[0][1]
-            A11 = current_trans_dict_adj[1][1]
+            A10 = c_t_adj_dict[1][0]
+            A01 = c_t_adj_dict[0][1]
+            A11 = c_t_adj_dict[1][1]
             # \"adj_matrix[0][0]\"^2...
             A002 = A00 * A00
             # ...and so on.
@@ -533,8 +583,9 @@ class Laplacian2D(BaseClass2D.BaseClass2D):
                      "info",
                      extra_msg)
     # --------------------------------------------------------------------------
-
+    
     # --------------------------------------------------------------------------
+    # TODO: modify this function to be used in 3D case.
     # Creates a layer around the foreground grids, reducing their area.
     def apply_overlap(self,
                       overlap):
@@ -570,7 +621,7 @@ class Laplacian2D(BaseClass2D.BaseClass2D):
 
         return p_bound
     # --------------------------------------------------------------------------
-
+    
     # --------------------------------------------------------------------------
     # Apply mask to the octants, not being considering the octants of the 
     # background grid covered by the ones of the foreground meshes.
@@ -594,26 +645,26 @@ class Laplacian2D(BaseClass2D.BaseClass2D):
         
         return m_g_octant
     # --------------------------------------------------------------------------
-
+    
     # --------------------------------------------------------------------------
-    def check_neighbours(self         ,
-                         codim        ,
-                         f_o_n        ,
-                         neighs       ,
-                         ghosts       ,
-                         octant       ,
-                         o_count      ,
-                         d_count      ,
-                         s_i          ,
-                         p_bound      ,
-                         h            ,
-                         key          ,
-                         octree       ,
-                         is_penalized ,
-                         is_background,
-                         logger       ,
-                         log_file     ,
-                         yet_masked = False):
+    def check_neighbour(self         ,
+                        codim        ,
+                        f_o_n        ,
+                        neighs       ,
+                        ghosts       ,
+                        octant       ,
+                        o_count      ,
+                        d_count      ,
+                        s_i          ,
+                        p_bound      ,
+                        h            ,
+                        key          ,
+                        octree       ,
+                        is_penalized ,
+                        is_background,
+                        logger       ,
+                        log_file     ,
+                        yet_masked = False):
         dimension = self._dim
         mapping = self._mapping
         if (yet_masked):
@@ -626,11 +677,12 @@ class Laplacian2D(BaseClass2D.BaseClass2D):
                                                   codim , 
                                                   neighs, 
                                                   ghosts)
+        # If we are outside the current octree...
         # Empty lists in python are \"False\".
         if ((codim == 2) and (not ghosts)):
                 return (d_count, o_count, s_i) if (not yet_masked) else \
                        (None, None, None)
-
+        # ...else...
         if not ghosts[0]:
             if (yet_masked):
                 n_center = octree.get_center(neighs[0])[:2]
@@ -650,27 +702,27 @@ class Laplacian2D(BaseClass2D.BaseClass2D):
                 m_index = m_index + oct_offset
         if is_background:
             if (mapping):
-                current_trans_dict = self.get_trans(0)
-                foreground_trans_dict_adj = self.get_trans_adj(1)
-                t_center = utilities.apply_persp_trans(dimension            , 
-                                                     n_center, 
-                                                     current_trans_dict  ,
-                                                     logger              ,  
-                                                     log_file)[0 : dimension]
-                t_center = utilities.apply_persp_trans_inv(dimension            , 
-                                                         t_center, 
-                                                         foreground_trans_dict_adj  ,
-                                                         logger              ,  
-                                                         log_file)[0 : dimension]
+                t_foregrounds = self._t_foregrounds
+                # Current transformation matrix's dictionary.
+                c_t_dict = self.get_trans(0)
+                n_center = utilities.apply_persp_trans(dimension, 
+                                                       n_center , 
+                                                       c_t_dict ,
+                                                       logger   ,  
+                                                       log_file)[: dimension]
+                (is_n_penalized, 
+                 n_polygon) = utilities.is_point_inside_polygons(n_center  ,
+                                                                 t_foregrounds,
+                                                                 logger    ,
+                                                                 log_file)
             else:
-                t_center = n_center
-            # Is neighbour penalized.
-            is_n_penalized = utilities.check_oct_into_squares(t_center,
-                                          	              p_bound ,
-                                                              h       ,
-                                                              0.0     ,
-                                      	                      logger  ,
-                                      	                      log_file)
+                # Is neighbour penalized.
+                is_n_penalized = utilities.check_oct_into_squares(n_center,
+                                              	                  p_bound ,
+                                                                  h       ,
+                                                                  0.0     ,
+                                          	                  logger  ,
+                                         	                  log_file)
         if (not yet_masked):
             if not is_penalized:
                 if is_n_penalized:
@@ -688,7 +740,7 @@ class Laplacian2D(BaseClass2D.BaseClass2D):
                 if not is_n_penalized:
                     stencil = self._edl.get(key)
                     stencil[s_i] = index
-                    stencil[s_i + 1], stencil[s_i + 2] = t_center
+                    stencil[s_i + 1], stencil[s_i + 2] = n_center
                     stencil[s_i + 3] = codim
                     stencil[s_i + 4] = f_o_n
                     self._edl[key] = stencil
@@ -773,26 +825,65 @@ class Laplacian2D(BaseClass2D.BaseClass2D):
             # Background grid.
             if is_background:
                 if (mapping):
-                    current_trans_dict = self.get_trans(0)
-                    foreground_trans_dict_adj = self.get_trans_adj(1)
-                    t_center = utilities.apply_persp_trans(dimension            , 
-                                                         center, 
-                                                         current_trans_dict  ,
-                                                         logger              ,  
-                                                         log_file)[0 : dimension]
-                    t_center = utilities.apply_persp_trans_inv(dimension            , 
-                                                             t_center, 
-                                                             foreground_trans_dict_adj  ,
-                                                             logger              ,  
-                                                             log_file)[0 : dimension]
+                    t_foregrounds = self._t_foregrounds
+                    # Current transformation matrix's dictionary.
+                    c_t_dict = self.get_trans(0)
+                    # Current transformation matrix adjoint's dictionary.
+                    c_t_adj_dict = self.get_trans_adj(0)
+
+                    oct_corners = utilities.get_corners_from_center(center,
+                                                                    h)
+                    n_oct_corners = len(oct_corners)
+                    for i, corner in enumerate(oct_corners):
+                        is_corner_penalized = False
+                        corner = utilities.apply_persp_trans(dimension, 
+                                                             corner   , 
+                                                             c_t_dict ,
+                                                             logger   ,  
+                                                             log_file)[: dimension]
+                        (is_corner_penalized,
+                         n_polygon) = utilities.is_point_inside_polygons(corner       ,
+                                                                         t_foregrounds,
+                                                                         logger       ,
+                                                                         log_file)
+                        if (not is_corner_penalized):
+                            break
+                        else:
+                            if (i == (n_oct_corners - 1)):
+                                is_penalized = True
+                    
+                    #center = utilities.apply_persp_trans(dimension, 
+                    #                                     center   , 
+                    #                                     c_t_dict ,
+                    #                                     logger   ,  
+                    #                                     log_file)[: dimension]
+ 
+                    #(is_penalized, 
+                    # n_polygon) = utilities.is_point_inside_polygons(center    ,
+                    #                                                 t_foregrounds,
+                    #                                                 logger    ,
+                    #                                                 log_file)
+                    #if (not n_polygon):
+                    #    center = utilities.apply_persp_trans_inv(dimension   ,
+                    #                                             center      ,
+                    #                                             c_t_adj_dict,
+                    #                                             logger      ,
+                    #                                             log_file)[: dimension]
+                    #else:
+                    #    # Foreground transformation matrix adjoint's dictionary.
+                    #    f_t_adj_dict = self.get_trans_adj(n_polygon)
+                    #    center = utilities.apply_persp_trans_inv(dimension   ,
+                    #                                             center      ,
+                    #                                             f_t_adj_dict,
+                    #                                             logger      ,
+                    #                                             log_file)[: dimension]
                 else:
-                    t_center = center
-                is_penalized = utilities.check_oct_into_squares(t_center ,
-                                                  	        p_bound,
-                                                                h      ,
-                                                                0.0    ,
-                                                  	        logger ,
-                                                  	        log_file)
+                    is_penalized = utilities.check_oct_into_squares(center ,
+                                                      	            p_bound,
+                                                                    h      ,
+                                                                    0.0    ,
+                                                  	            logger ,
+                                                  	            log_file)
             if is_penalized:
                 self._nln[octant] = -1
                 key = (grid    ,
@@ -808,7 +899,7 @@ class Laplacian2D(BaseClass2D.BaseClass2D):
                 # superposed?
                 stencil = [-1] * 43
                 stencil[0] = g_octant
-                stencil[1], stencil[2] = t_center
+                stencil[1], stencil[2] = center
                 self._edl.update({key : stencil})
             else:
                 self._nln[octant] = new_oct_count
@@ -827,31 +918,31 @@ class Laplacian2D(BaseClass2D.BaseClass2D):
                 # Not boundary face.
                 if not self._octree.get_bound(py_oct, 
                                               face):
-                    n_y_s.update(face_node[face][0:2])
+                    n_y_s.update(face_node[face][0 : 2])
                     (d_count, 
                      o_count, 
-                     s_i) = self.check_neighbours(1                            ,
-                                                  face                         ,
-                                                  neighs                       ,
-                                                  ghosts                       ,
-                                                  octant                       ,
-                                                  o_count                      ,
-                                                  d_count                      ,
-                                                  s_i                          ,
-                                                  p_bound                      ,
-                                                  h                            ,
-                                                  key if is_penalized else None,
-                                                  octree                       ,
-                                                  is_penalized                 ,
-                                                  is_background                ,
-                                                  logger                       ,
-                                                  log_file)
+                     s_i) = self.check_neighbour(1                            ,
+                                                 face                         ,
+                                                 neighs                       ,
+                                                 ghosts                       ,
+                                                 octant                       ,
+                                                 o_count                      ,
+                                                 d_count                      ,
+                                                 s_i                          ,
+                                                 p_bound                      ,
+                                                 h                            ,
+                                                 key if is_penalized else None,
+                                                 octree                       ,
+                                                 is_penalized                 ,
+                                                 is_background                ,
+                                                 logger                       ,
+                                                 log_file)
                 else:
                     # Remove (if present) from set \"n_y_s\" the nodes on the
                     # intersection between an edge on the boundary and an edge
                     # not on the boundary.
                     # Boundary nodes.
-                    b_ns =  face_node[face][0:2]
+                    b_ns =  face_node[face][0 : 2]
                     n_t_n_s.update(b_ns)
                     # Adding elements for the octants of the background to use
                     # to interpolate stencil values for boundary conditions of 
@@ -875,22 +966,22 @@ class Laplacian2D(BaseClass2D.BaseClass2D):
                 for node in n_y_s:
                     (d_count, 
                      o_count, 
-                     s_i) = self.check_neighbours(2                            ,
-                                                  node                         ,
-                                                  neighs                       ,
-                                                  ghosts                       ,
-                                                  octant                       ,
-                                                  o_count                      ,
-                                                  d_count                      ,
-                                                  s_i                          ,
-                                                  p_bound                      ,
-                                                  h                            ,
-                                                  key if is_penalized else None,
-                                                  octree                       ,
-                                                  is_penalized                 ,
-                                                  is_background                ,
-                                                  logger                       ,
-                                                  log_file)
+                     s_i) = self.check_neighbour(2                            ,
+                                                 node                         ,
+                                                 neighs                       ,
+                                                 ghosts                       ,
+                                                 octant                       ,
+                                                 o_count                      ,
+                                                 d_count                      ,
+                                                 s_i                          ,
+                                                 p_bound                      ,
+                                                 h                            ,
+                                                 key if is_penalized else None,
+                                                 octree                       ,
+                                                 is_penalized                 ,
+                                                 is_background                ,
+                                                 logger                       ,
+                                                 log_file)
             if not is_penalized:
                 d_nnz.append(d_count)
                 o_nnz.append(o_count)
@@ -1007,20 +1098,23 @@ class Laplacian2D(BaseClass2D.BaseClass2D):
                                             comm = comm_w)
         # If an element is being allocated in a place not preallocate, then 
         # the program will stop.
+        # TODO: set this check to \"True\", solving the problem you have now on
+        # the numeration of nnz.
         self._b_mat.setOption(self._b_mat.Option.NEW_NONZERO_ALLOCATION_ERR, 
-                              False)
+                              True)
         
         o_ranges = self.get_ranges()
         dimension = self._dim
         mapping = self._mapping
         if (mapping):
-            current_trans_dict_adj = self.get_trans_adj(grid) 
+            # Current transformation adjoint matrix's dictionary.
+            c_t_a_dict = self.get_trans_adj(grid) 
             # \"adj_matrix[0][0]\"...
-            A00 = current_trans_dict_adj[0][0]
+            A00 = c_t_a_dict[0][0]
             # ...and so on.
-            A10 = current_trans_dict_adj[1][0]
-            A01 = current_trans_dict_adj[0][1]
-            A11 = current_trans_dict_adj[1][1]
+            A10 = c_t_a_dict[1][0]
+            A01 = c_t_a_dict[0][1]
+            A11 = c_t_a_dict[1][1]
             # \"adj_matrix[0][0]\"^2...
             A002 = A00 * A00
             # ...and so on.
@@ -1044,28 +1138,48 @@ class Laplacian2D(BaseClass2D.BaseClass2D):
             # Background grid.
             if is_background:
                 if (mapping):
-                    current_trans_dict = self.get_trans(0)
-                    foreground_trans_dict_adj = self.get_trans_adj(1)
-                    t_center = utilities.apply_persp_trans(dimension            , 
-                                                         center, 
-                                                         current_trans_dict  ,
-                                                         logger              ,  
-                                                         log_file)[0 : dimension]
-                    t_center = utilities.apply_persp_trans_inv(dimension            , 
-                                                             t_center, 
-                                                             foreground_trans_dict_adj  ,
-                                                             logger              ,  
-                                                             log_file)[0 : dimension]
+                    t_foregrounds = self._t_foregrounds
+                    # Current transformation matrix's dictionary.
+                    c_t_dict = self.get_trans(0)
+                    oct_corners = utilities.get_corners_from_center(center,
+                                                                    h)
+                    n_oct_corners = len(oct_corners)
+                    for i, corner in enumerate(oct_corners):
+                        is_corner_penalized = False
+                        corner = utilities.apply_persp_trans(dimension, 
+                                                             corner   , 
+                                                             c_t_dict ,
+                                                             logger   ,  
+                                                             log_file)[: dimension]
+                        (is_corner_penalized,
+                         n_polygon) = utilities.is_point_inside_polygons(corner       ,
+                                                                         t_foregrounds,
+                                                                         logger       ,
+                                                                         log_file)
+                        if (not is_corner_penalized):
+                            break
+                        else:
+                            if (i == (n_oct_corners - 1)):
+                                is_penalized = True
+
+                    #t_center = utilities.apply_persp_trans(dimension, 
+                    #                                       center   , 
+                    #                                       c_t_dict ,
+                    #                                       logger   ,  
+                    #                                       log_file)[: dimension]
+                    #(is_penalized, 
+                    # n_polygon) = utilities.is_point_inside_polygons(t_center  ,
+                    #                                                 t_foregrounds,
+                    #                                                 logger    ,
+                    #                                                 log_file)
                 else:
-                    t_center = center
-                is_penalized = utilities.check_oct_into_squares(t_center ,
-                                                  	        p_bound,
-                                                                h      ,
-                                                                0.0    ,
-                                                  	        logger ,
-                                                  	        log_file)
+                    is_penalized = utilities.check_oct_into_squares(center ,
+                                                  	            p_bound,
+                                                                    h      ,
+                                                                    0.0    ,
+                                                  	            logger ,
+                                                  	            log_file)
             if not is_penalized:
-                #print(m_g_octant)
                 indices.append(m_g_octant)
                 if (not mapping):
                     # Temporary multiplier.
@@ -1077,9 +1191,9 @@ class Laplacian2D(BaseClass2D.BaseClass2D):
                                                     # example, with dimension 2
                                                     #\"[center]\" will be 
                                                     # \"[[x, y]]\".
-                                                    [center]              ,
-                                                    current_trans_dict_adj,
-                                                    logger                ,
+                                                    [center]  ,
+                                                    c_t_a_dict,
+                                                    logger    ,
                                                     log_file)
                     w_first2 = w_first * w_first
                     t_m = (-2.0) * w_first2 * ((A002 + A102) + (A012 + A112))
@@ -1092,38 +1206,32 @@ class Laplacian2D(BaseClass2D.BaseClass2D):
                 for face in xrange(0, nfaces):
                     if not octree.get_bound(py_oct, 
                                             face):
-                        n_y_s.update(face_node[face][0:2])
+                        n_y_s.update(face_node[face][0 : 2])
                         
                         (m_index       , 
                          is_n_penalized,
-                         n_center) = self.check_neighbours(1                ,
-                                                           face             ,
-                                                           neighs           ,
-                                                           ghosts           ,
-                                                           octant           ,
-                                                           oct_offset       ,
-                                                           o_ranges         ,
-                                                           0                ,
-                                                           p_bound          ,
-                                                           h                ,
-                                                           None             ,
-                                                           octree           ,
-                                                           is_penalized     ,
-                                                           is_background    ,
-                                                           logger           ,
-                                                           log_file         ,
-                                                           yet_masked = True)
+                         n_center) = self.check_neighbour(1            ,
+                                                          face         ,
+                                                          neighs       ,
+                                                          ghosts       ,
+                                                          octant       ,
+                                                          oct_offset   ,
+                                                          o_ranges     ,
+                                                          0            ,
+                                                          p_bound      ,
+                                                          h            ,
+                                                          None         ,
+                                                          octree       ,
+                                                          is_penalized ,
+                                                          is_background,
+                                                          logger       ,
+                                                          log_file     ,
+                                                          yet_masked = True)
                         if not is_n_penalized:
                             indices.append(m_index)
                             if (not mapping):
                                 t_m = 1.0
                             else:
-                                w_first = utilities.h_c_w_first(dimension             ,
-                                                                [center]              ,
-                                                                current_trans_dict_adj,
-                                                                logger                ,
-                                                                log_file)
-                                w_first2 = w_first * w_first
                                 t_m = (A002 + A102) if ((face == 0) or \
                                                         (face == 1)) else \
                                       (A012 + A112)
@@ -1131,7 +1239,7 @@ class Laplacian2D(BaseClass2D.BaseClass2D):
                             value_to_append = t_m / h2
                             values.append(value_to_append)
                     else:
-                        b_ns =  face_node[face][0:2]
+                        b_ns =  face_node[face][0 : 2]
                         n_t_n_s.update(b_ns)
                 # New set with elements in \"n_y_s\" but not in \"n_t_n_s\". 
                 n_y_s = n_y_s.difference(n_t_n_s)
@@ -1139,31 +1247,25 @@ class Laplacian2D(BaseClass2D.BaseClass2D):
                     for node in n_y_s:
                         (m_index       , 
                          is_n_penalized,
-                         n_center) = self.check_neighbours(2            ,
-                                                           node         ,
-                                                           neighs       ,
-                                                           ghosts       ,
-                                                           octant       ,
-                                                           oct_offset   ,
-                                                           o_ranges     ,
-                                                           0            ,
-                                                           p_bound      ,
-                                                           h            ,
-                                                           None         ,
-                                                           octree       ,
-                                                           is_penalized ,
-                                                           is_background,
-                                                           logger       ,
-                                                           log_file     ,
-                                                           yet_masked = True)
+                         n_center) = self.check_neighbour(2            ,
+                                                          node         ,
+                                                          neighs       ,
+                                                          ghosts       ,
+                                                          octant       ,
+                                                          oct_offset   ,
+                                                          o_ranges     ,
+                                                          0            ,
+                                                          p_bound      ,
+                                                          h            ,
+                                                          None         ,
+                                                          octree       ,
+                                                          is_penalized ,
+                                                          is_background,
+                                                          logger       ,
+                                                          log_file     ,
+                                                          yet_masked = True)
                         if not is_n_penalized:
                             indices.append(m_index)
-                            w_first = utilities.h_c_w_first(dimension             ,
-                                                            [center]              ,
-                                                            current_trans_dict_adj,
-                                                            logger                ,
-                                                            log_file)
-                            w_first2 = w_first * w_first
                             t_m = w_first2 * ((A00 * A01) + (A10 * A11))
                             t_m = (t_m * 0.5) if ((node == 0) or (node == 3)) \
                                               else (t_m * (-0.5))
@@ -1258,13 +1360,13 @@ class Laplacian2D(BaseClass2D.BaseClass2D):
     # Interpolating the solution is necessary to be able to use the \"vtm\"
     # typology of files. For the moment, the value interpolated is substituted
     # by the fixed value \"0.0\".
-    def interpolate_solution(self):
+    def reset_partially_solution(self):
         """Function which creates a \"new\" solution array, pushing in the
            octants covered by foreground meshes the values interpolated from the
            neighbours around them.
 
            Returns:
-                inter_sol (PETSc.Vec) : the interpolated solution."""
+                res_sol (PETSc.Vec) : the partially resetted solution."""
 
         grid = self._proc_g
         octree = self._octree
@@ -1276,24 +1378,24 @@ class Laplacian2D(BaseClass2D.BaseClass2D):
         # Octree's ids contained.
         ids_octree_contained = xrange(o_ranges[0], 
                                       up_id_octree)
-        # Interpolated solution.
-        inter_sol = self.init_array("interpolated solution",
+        # Resetted solution.
+        res_sol = self.init_array("resetted partially solution",
                                     False)
 
         for i in ids_octree_contained:
             sol_index = self.mask_octant(i)
             if (sol_index != -1):
                 sol_value = self._sol.getValue(sol_index)
-                inter_sol.setValue(i, sol_value)
+                res_sol.setValue(i, sol_value)
 
-        inter_sol.assemblyBegin()
-        inter_sol.assemblyEnd()
+        res_sol.assemblyBegin()
+        res_sol.assemblyEnd()
         
-        msg = "Interpolated solution"
+        msg = "Resetted partially solution"
         self.log_msg(msg   ,
                      "info")
     
-        return inter_sol
+        return res_sol
     # --------------------------------------------------------------------------
    
     # --------------------------------------------------------------------------
@@ -1386,7 +1488,7 @@ class Laplacian2D(BaseClass2D.BaseClass2D):
         self.log_msg(msg,
                      "info")
     # --------------------------------------------------------------------------
-    
+
     # --------------------------------------------------------------------------
     # Solving...
     def solve(self):
@@ -1439,7 +1541,8 @@ class Laplacian2D(BaseClass2D.BaseClass2D):
         # The \"self._edg_c\" will contains the count of data between
         # grids of different levels.
 	# Exchanged data global count, for the moment initialize with size one.
-        self._edg_c = numpy.empty(self._comm_w.Get_size() - self._comm.Get_size(),
+        self._edg_c = numpy.empty(self._comm_w.Get_size() - \
+                                  self._comm.Get_size(),
                                   dtype = numpy.int64)
         # New local numeration. 
         self._nln = numpy.empty(n_oct,
@@ -1591,7 +1694,7 @@ class Laplacian2D(BaseClass2D.BaseClass2D):
         self.log_msg(msg   ,
                      "info")
     # --------------------------------------------------------------------------
-
+    
     # --------------------------------------------------------------------------
     # Sub_method of \"update_values\".
     def update_fg_grids(self                ,
@@ -1615,10 +1718,8 @@ class Laplacian2D(BaseClass2D.BaseClass2D):
         mapping = self._mapping
         proc_grid = self._proc_g
         if (mapping):
-            background_trans_dict = self.get_trans(0)
-            background_trans_dict_adj = self.get_trans_adj(0)
-            current_trans_dict = self.get_trans(proc_grid)
-            current_trans_dict_adj = self.get_trans_adj(proc_grid) 
+            # Background transformation matrix adjoint's dictionary.
+            b_t_adj_dict = self.get_trans_adj(0)
 
         start = time.time()
         list_edg = list(self._n_edg)
@@ -1639,33 +1740,20 @@ class Laplacian2D(BaseClass2D.BaseClass2D):
                                 # perfectly superposed??
                                 range(0, l_l_edg)]).reshape(l_l_edg, l_s)
         centers = [(stencils[i][1], stencils[i][2], 0) for i in range(0, l_l_edg)]
-        #if (mapping):
-        #    centers = [utilities.apply_persp_trans(dimension            , 
-        #                                           center[0 : dimension], 
-        #                                           background_trans_dict,
-        #                                           logger               ,  
-        #                                           log_file) for \
-        #               center in centers]
-        #    centers = [utilities.apply_persp_trans_inv(dimension             , 
-        #                                               center[0 : dimension] , 
-        #                                               current_trans_dict_adj,
-        #                                               logger                ,  
-        #                                               log_file) for \
-        #               center in centers]
         n_centers = len(centers)
         if (mapping):
             # Numpy ws'.
-            n_ws_first = utilities.h_c_w_first(dimension ,
-                                               centers   ,
-                                               background_trans_dict_adj,
-                                               logger    ,
+            n_ws_first = utilities.h_c_w_first(dimension   ,
+                                               centers     ,
+                                               b_t_adj_dict,
+                                               logger      ,
                                                log_file)
             # \"adj_matrix[0][0]\"...
-            A00 = background_trans_dict_adj[0][0]
+            A00 = b_t_adj_dict[0][0]
             # ...and so on.
-            A10 = background_trans_dict_adj[1][0]
-            A01 = background_trans_dict_adj[0][1]
-            A11 = background_trans_dict_adj[1][1]
+            A10 = b_t_adj_dict[1][0]
+            A01 = b_t_adj_dict[0][1]
+            A11 = b_t_adj_dict[1][1]
             # \"adj_matrix[0][0]\"^2...
             A002 = A00 * A00
             # ...and so on.
@@ -1675,10 +1763,6 @@ class Laplacian2D(BaseClass2D.BaseClass2D):
             # TODO: add coefficients^2 for 3D.
             if (dimension == 3):
                 pass
-
-        #for i in xrange (0, n_centers):
-        #    if ((dimension == 2) and (mapping)):
-        #        centers[i].append(0)
         # Vectorized functions are just syntactic sugar:
         # http://stackoverflow.com/questions/7701429/efficient-evaluation-of-a-function-at-every-cell-of-a-numpy-array
         # http://stackoverflow.com/questions/8079061/function-application-over-numpys-matrix-row-column
@@ -1696,10 +1780,9 @@ class Laplacian2D(BaseClass2D.BaseClass2D):
         # \"idxs[0]\" because is a numpy array, so to select the array we have
         # to use the index notation.
         for idx in idxs[0]:
-            #print(keys[idx])
             center_cell_container = octree.get_center(local_idxs[idx])
             center_cell_container = center_cell_container[: dimension]
-            location = utilities.points_location(centers[idx][0 : dimension], 
+            location = utilities.points_location(centers[idx][: dimension], 
                                                  center_cell_container)
             neigh_centers, neigh_indices = ([] for i in range(0, 2)) 
             (neigh_centers, 
@@ -1711,7 +1794,9 @@ class Laplacian2D(BaseClass2D.BaseClass2D):
 
             if (mapping):
                 w_first2 = n_ws_first[idx] * n_ws_first[idx]
-                for i in range(6, len(stencils[idx]), 5):
+                # Checkout how the \"stencil\" is created in the function
+                # \"create_mask\".
+                for i in xrange(6, len(stencils[idx]), 5):
                     b_codim = int(stencils[idx][i])
                     f_o_n = int(stencils[idx][i + 1])
                     row_index = int(stencils[idx][i - 3])
@@ -1721,8 +1806,6 @@ class Laplacian2D(BaseClass2D.BaseClass2D):
                                             else (A012 + A112)
                         t_m = (1.0 * w_first2) * t_m
                         value_to_multiply = t_m / h2
-                        #print("value_to_multiply = " + str(value_to_multiply) + " 1/h2 = " + str(1.0/h2)) 
-                        #value_to_multiply = (1.0 / h2)
                     elif (b_codim == 2):
                         t_m = w_first2 * ((A00 * A01) + (A10 * A11))
                         t_m = (t_m * 0.5) if ((f_o_n == 0) or (f_o_n == 3)) \
@@ -1739,7 +1822,7 @@ class Laplacian2D(BaseClass2D.BaseClass2D):
             else:
                 bil_coeffs = [coeff * (1.0 / h2s[idx]) for coeff in bil_coeffs]
 
-                row_indices = [int(octant) for octant in stencils[idx][3::5]]
+                row_indices = [int(octant) for octant in stencils[idx][3 :: 5]]
 
                 self.apply_rest_prol_ops(row_indices  ,
                                          neigh_indices,
@@ -1752,7 +1835,7 @@ class Laplacian2D(BaseClass2D.BaseClass2D):
         self.log_msg(msg   ,
                      "info")
     # --------------------------------------------------------------------------
-    
+
     # --------------------------------------------------------------------------
     # Sub_method of \"update_values\".
     def update_bg_grids(self                ,
@@ -1790,8 +1873,9 @@ class Laplacian2D(BaseClass2D.BaseClass2D):
         keys = numpy.array([list_edg[i][0] for i in 
                             range(0, l_l_edg)]).reshape(l_l_edg, l_k)
         h2s = keys[:, 4] * keys[:, 4]
-        centers = numpy.array([list_edg[i][1] for i in 
+        centers = numpy.array([list_edg[i][1][: dimension] for i in 
                                range(0, l_l_edg)]).reshape(l_l_edg, l_s)
+
         n_centers = centers.shape[0]
         #TODO: understand why here we need to pass \"center[0:2]\" to the 
         # function \"get_point_owner_dx\", while in the previous version of
@@ -1799,8 +1883,10 @@ class Laplacian2D(BaseClass2D.BaseClass2D):
         # the change of type of the input arguments from \"dvector\" to 
         # \"darray\".
         local_idxs = numpy.array([octree.get_point_owner_idx((center[0], 
-                                                              center[1], 
-                                                              0)) for \
+                                                              center[1],
+                                                              center[2] if    \
+                                                              (dimension == 3)\
+                                                              else 0)) for    \
                                   center in centers])
         global_idxs = local_idxs + o_ranges[0]
 
@@ -1811,19 +1897,20 @@ class Laplacian2D(BaseClass2D.BaseClass2D):
 
         for idx in idxs[0]:
             if (mapping):
-                foreground_trans_dict_adj = self.get_trans_adj(keys[i][0])
+                # Foreground transformation matrix adjoint's dictionary.
+                f_t_adj_dict = self.get_trans_adj(keys[i][0])
                 # Numpy ws'.
-                n_ws_first = utilities.h_c_w_first(dimension                ,
-                                                   [centers[idx]]           ,
-                                                   foreground_trans_dict_adj,
-                                                   logger                   ,
+                n_ws_first = utilities.h_c_w_first(dimension     ,
+                                                   [centers[idx]],
+                                                   f_t_adj_dict  ,
+                                                   logger        ,
                                                    log_file)
                 # \"adj_matrix[0][0]\"...
-                A00 = foreground_trans_dict_adj[0][0]
+                A00 = f_t_adj_dict[0][0]
                 # ...and so on.
-                A10 = foreground_trans_dict_adj[1][0]
-                A01 = foreground_trans_dict_adj[0][1]
-                A11 = foreground_trans_dict_adj[1][1]
+                A10 = f_t_adj_dict[1][0]
+                A01 = f_t_adj_dict[0][1]
+                A11 = f_t_adj_dict[1][1]
                 # \"adj_matrix[0][0]\"^2...
                 A002 = A00 * A00
                 # ...and so on.
@@ -1885,7 +1972,7 @@ class Laplacian2D(BaseClass2D.BaseClass2D):
         self.log_msg(msg   ,
                      "info")
     # --------------------------------------------------------------------------
-
+    
     # --------------------------------------------------------------------------
     # Returns the right neighbours for an octant, being them of edges or nodes.
     def find_right_neighbours(self                 , 
@@ -1893,7 +1980,7 @@ class Laplacian2D(BaseClass2D.BaseClass2D):
                               current_octant       ,
                               start_octant         ,
                               is_background = False,
-                              boundary_face = -1   ,
+                              f_o_n_i = -1         ,
                               codim = None):
         """Method which compute the right 4 neighbours for the octant 
            \"current_octant\", considering first the label \"location\" to
@@ -1909,7 +1996,10 @@ class Laplacian2D(BaseClass2D.BaseClass2D):
                 is_background (bool) : indicates if we are or not on the 
                                        background grid. On this choice depends
                                        how the indices of the neighbours will
-                                       be evaluatd.
+                                       be evaluated.
+                f_o_n_i (int) : face or node index, depending on the codimension
+                                (if 1 will be a face, if 2 will be a node).
+                codim (int) : codimension of the neighbour (see above).
 
            Returns:
                 (centers, indices) (tuple of lists) : tuple containing the lists
@@ -1921,6 +2011,7 @@ class Laplacian2D(BaseClass2D.BaseClass2D):
         centers = []
         indices = []
         grid = self._proc_g
+        dimension = self._dim
         # Ghosts' deplacement.
         g_d = 0
         if grid:
@@ -1928,15 +2019,16 @@ class Laplacian2D(BaseClass2D.BaseClass2D):
                 g_d = g_d + self._oct_f_g[i]
 
         if location == "nordovest":
-            # Adding 1) the number of node, 2) (codim, number of face/node).
+            # Adding 1) number of neighbour, 2) (codim, number of face/node).
             if is_background:
+                # Face.
                 if (codim == 1):
-                    if (boundary_face == 2):
+                    if (f_o_n_i == 2):
                         ordered_points.update({0 : (2, 0)})
                         ordered_points.update({1 : (1, 2)})
                         ordered_points.update({2 : (1, 0)})
                         ordered_points.update({3 : None})
-                    elif (boundary_face == 1):
+                    elif (f_o_n_i == 1):
                         ordered_points.update({0 : None})
                         ordered_points.update({1 : (1, 1)})
                         ordered_points.update({2 : (1, 3)})
@@ -1948,21 +2040,12 @@ class Laplacian2D(BaseClass2D.BaseClass2D):
                         ordered_points.update({1 : None})
                         ordered_points.update({2 : (2, 2)})
                         ordered_points.update({3 : (1, 3)})
-                # codim == 2.
+                # Node.
                 else:
-                    boundary_node = boundary_face
-                    if ((boundary_node == 1) or (boundary_node == 3)):
-                        ordered_points.update({0 : None})
-                        ordered_points.update({1 : (1, 1)})
-                        ordered_points.update({2 : (1, 2)})
-                        ordered_points.update({3 : (2, 3)})
-                    else:
-                        ordered_points.update({0 : (1, 0)})
-                        ordered_points.update({1 : None})
-                        ordered_points.update({2 : (2, 2)})
-                        ordered_points.update({3 : (1, 3)})
-                        
-                        
+                    ordered_points.update({0 : (1, 2)})
+                    ordered_points.update({1 : (2, 1)})
+                    ordered_points.update({2 : None})
+                    ordered_points.update({3 : (1, 1)})
             else:
                 ordered_points.update({0 : (1, 0)})
                 ordered_points.update({1 : None})
@@ -1971,12 +2054,12 @@ class Laplacian2D(BaseClass2D.BaseClass2D):
         elif location == "nordest":
             if is_background:
                 if (codim == 1):
-                    if (boundary_face == 2):
+                    if (f_o_n_i == 2):
                         ordered_points.update({0 : (1, 2)})
                         ordered_points.update({1 : (2, 1)})
                         ordered_points.update({2 : None})
                         ordered_points.update({3 : (1, 1)})
-                    elif (boundary_face == 0):
+                    elif (f_o_n_i == 0):
                         ordered_points.update({0 : (1, 0)})
                         ordered_points.update({1 : None})
                         ordered_points.update({2 : (2, 2)})
@@ -1989,18 +2072,10 @@ class Laplacian2D(BaseClass2D.BaseClass2D):
                         ordered_points.update({2 : (1, 3)})
                         ordered_points.update({3 : (2, 3)})
                 else:
-                    boundary_node = boundary_face
-                    if ((boundary_node == 0) or (boundary_node == 2)):
-                        ordered_points.update({0 : (1, 0)})
-                        ordered_points.update({1 : None})
-                        ordered_points.update({2 : (2, 2)})
-                        ordered_points.update({3 : (1, 3)})
-                    else:
-                        ordered_points.update({0 : None})
-                        ordered_points.update({1 : (1, 1)})
-                        ordered_points.update({2 : (1, 3)})
-                        ordered_points.update({3 : (2, 3)})
-                        
+                    ordered_points.update({0 : (2, 0)})
+                    ordered_points.update({1 : (1, 1)})
+                    ordered_points.update({2 : (1, 0)})
+                    ordered_points.update({3 : None})
             else:
                 ordered_points.update({0 : None})
                 ordered_points.update({1 : (1, 1)})
@@ -2009,12 +2084,12 @@ class Laplacian2D(BaseClass2D.BaseClass2D):
         elif location == "sudovest":
             if is_background:
                 if (codim == 1):
-                    if (boundary_face == 1):
+                    if (f_o_n_i == 1):
                         ordered_points.update({0 : (1, 2)})
                         ordered_points.update({1 : (2, 1)})
                         ordered_points.update({2 : None})
                         ordered_points.update({3 : (1, 1)})
-                    elif (boundary_face == 3):
+                    elif (f_o_n_i == 3):
                         ordered_points.update({0 : (1, 0)})
                         ordered_points.update({1 : None})
                         ordered_points.update({2 : (2, 2)})
@@ -2027,18 +2102,10 @@ class Laplacian2D(BaseClass2D.BaseClass2D):
                         ordered_points.update({2 : (1, 0)})
                         ordered_points.update({3 : None})
                 else:
-                    boundary_node = boundary_face
-                    if ((boundary_node == 1) or (boundary_node == 3)):
-                        ordered_points.update({0 : (1, 2)})
-                        ordered_points.update({1 : (2, 1)})
-                        ordered_points.update({2 : None})
-                        ordered_points.update({3 : (1, 1)})
-                    else:
-                        ordered_points.update({0 : (2, 0)})
-                        ordered_points.update({1 : (1, 2)})
-                        ordered_points.update({2 : (1, 0)})
-                        ordered_points.update({3 : None})
-                        
+                    ordered_points.update({0 : None})
+                    ordered_points.update({1 : (1, 1)})
+                    ordered_points.update({2 : (1, 3)})
+                    ordered_points.update({3 : (2, 3)})
             else:
                 ordered_points.update({0 : (2, 0)})
                 ordered_points.update({1 : (1, 2)})
@@ -2047,12 +2114,12 @@ class Laplacian2D(BaseClass2D.BaseClass2D):
         elif location == "sudest":
             if is_background:
                 if (codim == 1):
-                    if (boundary_face == 0):
+                    if (f_o_n_i == 0):
                         ordered_points.update({0 : (2, 0)})
                         ordered_points.update({1 : (1, 2)})
                         ordered_points.update({2 : (1, 0)})
                         ordered_points.update({3 : None})
-                    elif (boundary_face == 3):
+                    elif (f_o_n_i == 3):
                         ordered_points.update({0 : None})
                         ordered_points.update({1 : (1, 1)})
                         ordered_points.update({2 : (1, 3)})
@@ -2065,18 +2132,10 @@ class Laplacian2D(BaseClass2D.BaseClass2D):
                         ordered_points.update({2 : None})
                         ordered_points.update({3 : (1, 1)})
                 else:
-                    boundary_node = boundary_face
-                    if ((boundary_node == 0) or (boundary_node == 2)):
-                        ordered_points.update({0 : (2, 0)})
-                        ordered_points.update({1 : (1, 2)})
-                        ordered_points.update({2 : (1, 0)})
-                        ordered_points.update({3 : None})
-                    else:
-                        ordered_points.update({0 : (1, 2)})
-                        ordered_points.update({1 : (2, 1)})
-                        ordered_points.update({2 : None})
-                        ordered_points.update({3 : (1, 1)})
-                    
+                    ordered_points.update({0 : (1, 0)})
+                    ordered_points.update({1 : None})
+                    ordered_points.update({2 : (2, 2)})
+                    ordered_points.update({3 : (1, 3)})
             else:
                 ordered_points.update({0 : (1, 2)})
                 ordered_points.update({1 : (2, 1)})
@@ -2087,7 +2146,7 @@ class Laplacian2D(BaseClass2D.BaseClass2D):
         for q_point in sorted(ordered_points.keys()):
             edge_or_node = ordered_points[q_point]
             if edge_or_node is None:
-                centers.append(self._octree.get_center(current_octant)[:2])
+                centers.append(self._octree.get_center(current_octant)[: dimension])
                 index = current_octant
                 m_index = self.mask_octant(index + start_octant)
                 if is_background:
@@ -2106,7 +2165,7 @@ class Laplacian2D(BaseClass2D.BaseClass2D):
                 if len(neighs) is not 0:
                     # Neighbour is into the same process, so is local.
                     if not ghosts[0]:
-                        cell_center = self._octree.get_center(neighs[0])[:2]
+                        cell_center = self._octree.get_center(neighs[0])[: dimension]
                         centers.append(cell_center)
                         index = neighs[0]
                         m_index = self.mask_octant(index + start_octant)
@@ -2124,7 +2183,7 @@ class Laplacian2D(BaseClass2D.BaseClass2D):
                         # found and stored in \"index\".
                         py_ghost_oct = self._octree.get_ghost_octant(neighs[0])
                         cell_center = self._octree.get_center(py_ghost_oct, 
-                                                              True)[:2]
+                                                              True)[: dimension]
                         centers.append(cell_center)
                         m_index = self.mask_octant(index)
                         if is_background:
@@ -2132,7 +2191,7 @@ class Laplacian2D(BaseClass2D.BaseClass2D):
                         indices.append(m_index + g_d)
                 # ...we need to evaluate boundary values.
                 else:
-                    border_center = self._octree.get_center(current_octant)[:2]
+                    border_center = self._octree.get_center(current_octant)[: dimension]
                     center = self.neighbour_centers(border_center  ,
                                                     edge_or_node[0],
                                                     edge_or_node[1])
@@ -2142,7 +2201,7 @@ class Laplacian2D(BaseClass2D.BaseClass2D):
 
         return (centers, indices)
     # --------------------------------------------------------------------------
-
+    
     # --------------------------------------------------------------------------
     # Apply restriction/prolongation operators.
     def apply_rest_prol_ops(self       ,
@@ -2163,10 +2222,12 @@ class Laplacian2D(BaseClass2D.BaseClass2D):
         grid = self._proc_g
         is_background = True
         mapping = self._mapping
+        dimension = self._dim
         if (mapping):
-            current_trans_dict = self.get_trans(grid)
+            # Current transformation matrix's dictionary.
+            c_t_dict = self.get_trans(grid)
         else:
-            current_trans_dict = numpy.array(None)
+            c_t_dict = numpy.array(None)
         if grid:
             is_background = False
             numpy_row_indices = numpy.array(row_indices)
@@ -2182,10 +2243,12 @@ class Laplacian2D(BaseClass2D.BaseClass2D):
             # solution is evaluated.
             if index == "outside_bg":
                 to_rhs.append(i)
-                e_sol = ExactSolution2D.ExactSolution2D.solution(centers[i][0],
-                                                                 centers[i][1],
-                                                                 None,
-                                                                 mapping = current_trans_dict,
+                e_sol = ExactSolution2D.ExactSolution2D.solution(centers[i][0]     ,
+                                                                 centers[i][1]     , 
+                                                                 centers[i][2] if\
+                                                                 (dimension == 3)\
+                                                                 else None         ,
+                                                                 mapping = c_t_dict,
                                                                  #use_mapping = False)
                                                                  use_mapping = mapping)
                 e_sols.append(e_sol)
@@ -2218,7 +2281,7 @@ class Laplacian2D(BaseClass2D.BaseClass2D):
         self.log_msg(msg   ,
                      "info")
     # --------------------------------------------------------------------------
-
+    
     # --------------------------------------------------------------------------
     def evaluate_norms(self          , 
                        exact_solution,
@@ -2226,7 +2289,7 @@ class Laplacian2D(BaseClass2D.BaseClass2D):
         """Function which evals the infinite and L2 norms of the error.
 
            Arguments:
-                exact_solution (numpy.array)
+                exact_solution (numpy.array) : exact solution.
                 solution (numpy.array) : computed solution.
 
            Returns:
@@ -2281,13 +2344,10 @@ class Laplacian2D(BaseClass2D.BaseClass2D):
         return self._sol
 
     @property
-    def res(self):
-        return self._res
-
-    @property
     def h(self):
         return self._h
 
     @property
     def not_pen_centers(self):
         return self._centers_not_penalized
+

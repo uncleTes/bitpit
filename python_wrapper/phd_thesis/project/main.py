@@ -14,7 +14,7 @@ import time
 import ConfigParser
 import my_pablo_uniform
 import ExactSolution2D as ExactSolution2D
-import Laplacian2D as Laplacian2D
+import Laplacian as Laplacian
 # ------------------------------------------------------------------------------
 
 # ------------------------------------------------------------------------------
@@ -25,7 +25,7 @@ class ParsingFileException(Exception):
 # ------------------------------------------------------------------------------
 
 config_file = "./config/PABLO.ini"
-log_file = "./log/Laplacian2D.log"
+log_file = "./log/Laplacian.log"
 # Initialize the parser for the configuration file and read it.
 config = ConfigParser.ConfigParser()
 files_list = config.read(config_file)
@@ -142,7 +142,7 @@ def set_comm_dict(n_grids  ,
                   comm_l):
     """Method which set a dictionary (\"comm_dictionary\") which is necessary 
        for the parallelized classes like \"ExactSolution2D\" or 
-       \"Laplacian2D\".
+       \"Laplacian\".
        
        Arguments:
            n_grids (int) : number of grids present in the config file.
@@ -199,6 +199,8 @@ def set_comm_dict(n_grids  ,
     comm_dictionary.update({"particles interaction" : p_inter})
     comm_dictionary.update({"mapping" : mapping})
     comm_dictionary.update({"log file" : log_file})
+    if (mapping):
+        comm_dictionary.update({"transformed points" : t_points})
 
     return comm_dictionary
 # ------------------------------------------------------------------------------
@@ -378,7 +380,7 @@ def compute(comm_dictionary     ,
            data_to_save (numpy.array) : array containings the data to be saved
                                         subsequently into the \"VTK\" file."""
 
-    laplacian = Laplacian2D.Laplacian2D(comm_dictionary)
+    laplacian = Laplacian.Laplacian(comm_dictionary)
     exact_solution = ExactSolution2D.ExactSolution2D(comm_dictionary)
 
     t_coeffs = numpy.array(None)
@@ -416,12 +418,6 @@ def compute(comm_dictionary     ,
     # If the original array is a Python list, then use the second function,
     # because it will be always needed a copy of the object.
     n_p_centers = numpy.array(p_centers)
-    # Numpy w's.
-    #n_w_first_s = utilities.h_c_w_first(dimension   ,
-    #                                    n_p_centers , 
-    #                                    t_coeffs_adj,
-    #                                    logger      ,
-    #                                    log_file)
 
     exact_solution.e_sol(n_p_centers[:, 0], 
                          n_p_centers[:, 1],
@@ -437,7 +433,7 @@ def compute(comm_dictionary     ,
     (norm_inf, norm_L2) = laplacian.evaluate_norms(exact_solution.sol,
                                                    laplacian.sol.getArray())
     print("process " + str(comm_w.Get_rank()) + " " + str((norm_inf, norm_L2)))
-    interpolate_sol = laplacian.interpolate_solution()
+    interpolate_sol = laplacian.reset_partially_solution()
     if mapping:
         p_centers = [utilities.apply_persp_trans(dimension,
                                                  center   , 

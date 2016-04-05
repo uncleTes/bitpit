@@ -231,6 +231,69 @@ def check_into_circle(point_to_check,
 
     return check
 
+def get_corners_from_center(center,
+                            edge):
+    corners = []
+    corners.append([center[0] - (edge/2.0), center[1] - (edge/2.0)])
+    corners.append([center[0] + (edge/2.0), center[1] - (edge/2.0)])
+    corners.append([center[0] - (edge/2.0), center[1] + (edge/2.0)])
+    corners.append([center[0] + (edge/2.0), center[1] + (edge/2.0)])
+
+    return corners
+
+def is_point_inside_polygons(point   ,
+                             polygons,
+                             logger  ,
+                             log_file):
+    inside = False
+
+    if isinstance(polygons, list):
+        for i, polygon in enumerate(polygons):
+            inside = is_point_inside_polygon(point  ,
+                                             polygon,
+                                             logger ,
+                                             log_file)
+            if (inside):
+                return (inside, i)
+    else:
+        logger = check_null_logger(logger,
+                                   log_file)
+        logger.error("Second parameter must be a list of lists.")
+    return (inside, None)
+        
+
+# Determine if a point is inside a given polygon or not.
+# http://www.ariel.com.au/a/python-point-int-poly.html
+# http://stackoverflow.com/questions/16625507/python-checking-if-point-is-inside-a-polygon
+def is_point_inside_polygon(point  ,
+                            polygon,
+                            logger ,
+                            log_file):
+
+    n = len(polygon)
+    x, y = point
+    inside =False
+
+    if isinstance(polygon, list):
+        p1x, p1y = polygon[0]
+        for i in xrange(n + 1):
+            p2x, p2y = polygon[i % n]
+            if (y > min(p1y, p2y)):
+                if (y <= max(p1y, p2y)):
+                    if (x <= max(p1x, p2x)):
+                        if (p1y != p2y):
+                            xinters = (y - p1y) * ((p2x - p1x) / (p2y - p1y)) +\
+                                      p1x
+                        if ((p1x == p2x) or (x <= xinters)):
+                            inside = not inside
+            p1x, p1y = p2x, p2y
+    else:
+        logger = check_null_logger(logger, 
+                                   log_file)
+        logger.error("Second parameter must be a list.")
+
+    return inside
+
 def check_point_into_square(point_to_check,
                             # [x_anchor, x_anchor + edge, 
                             #  y_anchor, y_anchor + edge]
