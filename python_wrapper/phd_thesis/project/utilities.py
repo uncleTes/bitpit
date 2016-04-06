@@ -272,12 +272,18 @@ def is_point_inside_polygon(point  ,
 
     n = len(polygon)
     x, y = point
-    inside =False
+    inside = False
 
     if isinstance(polygon, list):
         p1x, p1y = polygon[0]
         for i in xrange(n + 1):
             p2x, p2y = polygon[i % n]
+            # If it is equal to a vertex of the polygon; for the square, to
+            # consider also the points on the boundary edges, you have to put
+            # \"or\" instead of \"and\".
+            if ((x == p2x) and (y == p2y)):
+                inside = True
+                break
             if (y > min(p1y, p2y)):
                 if (y <= max(p1y, p2y)):
                     if (x <= max(p1x, p2x)):
