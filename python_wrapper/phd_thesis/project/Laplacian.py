@@ -422,7 +422,7 @@ class Laplacian(BaseClass2D.BaseClass2D):
             is_background = False
 
         b_indices, b_values = ([] for i in range(0, 2))# Boundary indices/values
-        b_centers, b_f_o_n = ([] for i in range(0, 2)) # Boundary centers/faces 
+        b_centers, b_f_o_n = ([] for i in range(0, 2)) # Boundary centers/faces
                                                        # or nodes
         b_codim = [] # Boundary codimensions
         for octant in xrange(0, n_oct):
@@ -469,22 +469,42 @@ class Laplacian(BaseClass2D.BaseClass2D):
                 check = False
                 # Check if foreground grid is inside the background one.
                 if (mapping):
-                    # Mapping logic center into the physical one... 
-                    center = utilities.apply_persp_trans(dimension          , 
-                                                         center[: dimension], 
-                                                         c_t_dict           ,
-                                                         logger             ,  
-                                                         log_file)[: dimension]
-                    check = utilities.is_point_inside_polygon(center      ,
-                                                              t_background,
-                                                              logger      ,
-                                                              log_file)
-                    # ...going back to the logical one.
-                    center = utilities.apply_persp_trans_inv(dimension          , 
-                                                             center[: dimension], 
-                                                             b_t_adj_dict       ,
-                                                             logger             ,  
+                    oct_corners = utilities.get_corners_from_center(center,
+                                                                    h)
+                    n_oct_corners = len(oct_corners)
+                    for i, corner in enumerate(oct_corners):
+                        is_corner_penalized = False
+                        corner = utilities.apply_persp_trans(dimension, 
+                                                             corner   , 
+                                                             c_t_dict ,
+                                                             logger   ,  
                                                              log_file)[: dimension]
+                        # Check corner.
+                        c_c = utilities.is_point_inside_polygon(corner      ,
+                                                                t_background,
+                                                                logger      ,
+                                                                log_file)
+                        if (not c_c):
+                            break
+                        else:
+                            if (i == (n_oct_corners - 1)):
+                                check = True
+                    ## Mapping logic center into the physical one... 
+                    #center = utilities.apply_persp_trans(dimension          , 
+                    #                                     center[: dimension], 
+                    #                                     c_t_dict           ,
+                    #                                     logger             ,  
+                    #                                     log_file)[: dimension]
+                    #check = utilities.is_point_inside_polygon(center      ,
+                    #                                          t_background,
+                    #                                          logger      ,
+                    #                                          log_file)
+                    ## ...going back to the logical one.
+                    #center = utilities.apply_persp_trans_inv(dimension          , 
+                    #                                         center[: dimension], 
+                    #                                         b_t_adj_dict       ,
+                    #                                         logger             ,  
+                    #                                         log_file)[: dimension]
                 else:
                     check = utilities.check_oct_into_square(center     ,
                                                 	    b_bound    ,
@@ -705,15 +725,15 @@ class Laplacian(BaseClass2D.BaseClass2D):
                 t_foregrounds = self._t_foregrounds
                 # Current transformation matrix's dictionary.
                 c_t_dict = self.get_trans(0)
-                n_center = utilities.apply_persp_trans(dimension, 
-                                                       n_center , 
-                                                       c_t_dict ,
-                                                       logger   ,  
-                                                       log_file)[: dimension]
+                t_n_center = utilities.apply_persp_trans(dimension, 
+                                                         n_center , 
+                                                         c_t_dict ,
+                                                         logger   ,  
+                                                         log_file)[: dimension]
                 (is_n_penalized, 
-                 n_polygon) = utilities.is_point_inside_polygons(n_center  ,
+                 n_polygon) = utilities.is_point_inside_polygons(t_n_center   ,
                                                                  t_foregrounds,
-                                                                 logger    ,
+                                                                 logger       ,
                                                                  log_file)
             else:
                 # Is neighbour penalized.
@@ -813,6 +833,12 @@ class Laplacian(BaseClass2D.BaseClass2D):
         g_octants = [octree.get_global_idx(octant) for octant in octants]
         py_octs = [octree.get_octant(octant) for octant in octants]
         centers = [octree.get_center(octant)[: dimension] for octant in octants]         
+        if (mapping):
+            t_foregrounds = self._t_foregrounds
+            # Current transformation matrix's dictionary.
+            c_t_dict = self.get_trans(0)
+            # Current transformation matrix adjoint's dictionary.
+            c_t_adj_dict = self.get_trans_adj(0)
 
         for octant in octants:
             d_count, o_count = 0, 0
@@ -825,12 +851,6 @@ class Laplacian(BaseClass2D.BaseClass2D):
             # Background grid.
             if is_background:
                 if (mapping):
-                    t_foregrounds = self._t_foregrounds
-                    # Current transformation matrix's dictionary.
-                    c_t_dict = self.get_trans(0)
-                    # Current transformation matrix adjoint's dictionary.
-                    c_t_adj_dict = self.get_trans_adj(0)
-
                     oct_corners = utilities.get_corners_from_center(center,
                                                                     h)
                     n_oct_corners = len(oct_corners)
@@ -851,32 +871,19 @@ class Laplacian(BaseClass2D.BaseClass2D):
                         else:
                             if (i == (n_oct_corners - 1)):
                                 is_penalized = True
-                    
-                    #center = utilities.apply_persp_trans(dimension, 
-                    #                                     center   , 
-                    #                                     c_t_dict ,
-                    #                                     logger   ,  
-                    #                                     log_file)[: dimension]
- 
-                    #(is_penalized, 
-                    # n_polygon) = utilities.is_point_inside_polygons(center    ,
-                    #                                                 t_foregrounds,
-                    #                                                 logger    ,
-                    #                                                 log_file)
-                    #if (not n_polygon):
-                    #    center = utilities.apply_persp_trans_inv(dimension   ,
-                    #                                             center      ,
-                    #                                             c_t_adj_dict,
-                    #                                             logger      ,
-                    #                                             log_file)[: dimension]
-                    #else:
-                    #    # Foreground transformation matrix adjoint's dictionary.
+                    #if (n_polygon):
+                    #    center = utilities.apply_persp_trans(dimension, 
+                    #                                         center   , 
+                    #                                         c_t_dict ,
+                    #                                         logger   ,  
+                    #                                         log_file)[: dimension]
                     #    f_t_adj_dict = self.get_trans_adj(n_polygon)
                     #    center = utilities.apply_persp_trans_inv(dimension   ,
                     #                                             center      ,
                     #                                             f_t_adj_dict,
                     #                                             logger      ,
                     #                                             log_file)[: dimension]
+                        
                 else:
                     is_penalized = utilities.check_oct_into_squares(center ,
                                                       	            p_bound,
