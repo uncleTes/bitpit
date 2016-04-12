@@ -263,6 +263,7 @@ def is_point_inside_polygons(point   ,
         
 
 # Determine if a point is inside a given polygon or not.
+# https://www.ecse.rpi.edu/Homepages/wrf/Research/Short_Notes/pnpoly.html ---> Better link
 # http://www.ariel.com.au/a/python-point-int-poly.html
 # http://stackoverflow.com/questions/16625507/python-checking-if-point-is-inside-a-polygon
 def is_point_inside_polygon(point  ,
@@ -270,29 +271,22 @@ def is_point_inside_polygon(point  ,
                             logger ,
                             log_file):
 
-    n = len(polygon)
+    n_vert = len(polygon)
     x, y = point
     inside = False
 
     if isinstance(polygon, list):
-        p1x, p1y = polygon[0]
-        for i in xrange(n + 1):
-            p2x, p2y = polygon[i % n]
-            # If it is equal to a vertex of the polygon; for the square, to
-            # consider also the points on the boundary edges, you have to put
-            # \"or\" instead of \"and\".
-            if ((x == p2x) and (y == p2y)):
-                inside = True
-                break
-            if (y > min(p1y, p2y)):
-                if (y <= max(p1y, p2y)):
-                    if (x <= max(p1x, p2x)):
-                        if (p1y != p2y):
-                            xinters = (y - p1y) * ((p2x - p1x) / (p2y - p1y)) +\
-                                      p1x
-                        if ((p1x == p2x) or (x <= xinters)):
-                            inside = not inside
-            p1x, p1y = p2x, p2y
+        for i in xrange(0, n_vert):
+            if (i == 0):
+                j = n_vert -1
+            else:
+                j = i - 1
+            i_x, i_y = polygon[i]
+            j_x, j_y = polygon[j]
+            if (((i_y > y) != (j_y > y)) and
+                (x < (j_x - i_x) * (y - i_y) / (j_y - i_y) + i_x)):
+                inside = not inside
+        return inside
     else:
         logger = check_null_logger(logger, 
                                    log_file)
