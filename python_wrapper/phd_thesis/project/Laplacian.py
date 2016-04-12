@@ -423,7 +423,6 @@ class Laplacian(BaseClass2D.BaseClass2D):
 
         b_indices, b_values = ([] for i in range(0, 2))# Boundary indices/values
         b_centers, b_f_o_n = ([] for i in range(0, 2)) # Boundary centers/faces
-                                                       # or nodes
         b_codim = [] # Boundary codimensions
         for octant in xrange(0, n_oct):
             # Global index of the current local octant \"octant\".
@@ -473,7 +472,7 @@ class Laplacian(BaseClass2D.BaseClass2D):
                                                                     h)
                     n_oct_corners = len(oct_corners)
                     for i, corner in enumerate(oct_corners):
-                        is_corner_penalized = False
+                        c_c = False
                         corner = utilities.apply_persp_trans(dimension, 
                                                              corner   , 
                                                              c_t_dict ,
@@ -489,22 +488,6 @@ class Laplacian(BaseClass2D.BaseClass2D):
                         else:
                             if (i == (n_oct_corners - 1)):
                                 check = True
-                    ## Mapping logic center into the physical one... 
-                    #center = utilities.apply_persp_trans(dimension          , 
-                    #                                     center[: dimension], 
-                    #                                     c_t_dict           ,
-                    #                                     logger             ,  
-                    #                                     log_file)[: dimension]
-                    #check = utilities.is_point_inside_polygon(center      ,
-                    #                                          t_background,
-                    #                                          logger      ,
-                    #                                          log_file)
-                    ## ...going back to the logical one.
-                    #center = utilities.apply_persp_trans_inv(dimension          , 
-                    #                                         center[: dimension], 
-                    #                                         b_t_adj_dict       ,
-                    #                                         logger             ,  
-                    #                                         log_file)[: dimension]
                 else:
                     check = utilities.check_oct_into_square(center     ,
                                                 	    b_bound    ,
@@ -513,6 +496,19 @@ class Laplacian(BaseClass2D.BaseClass2D):
                                               	            self.logger,
                                               	            log_file)
                 if check:
+                    if (mapping):
+                        # Mapping logic center into the physical one... 
+                        center = utilities.apply_persp_trans(dimension          , 
+                                                             center[: dimension], 
+                                                             c_t_dict           ,
+                                                             logger             ,  
+                                                             log_file)[: dimension]
+                        # ...going back to the logical one.
+                        center = utilities.apply_persp_trans_inv(dimension          , 
+                                                                 center[: dimension], 
+                                                                 b_t_adj_dict       ,
+                                                                 logger             ,  
+                                                                 log_file)[: dimension]
                     # Can't use list as dictionary's keys.
                     # http://stackoverflow.com/questions/7257588/why-cant-i-use-a-list-as-a-dict-key-in-python
                     # https://wiki.python.org/moin/DictionaryKeys
@@ -682,6 +678,8 @@ class Laplacian(BaseClass2D.BaseClass2D):
                         octree       ,
                         is_penalized ,
                         is_background,
+                        # Number of polygon to which the neigbour became to.
+                        n_polygon_n  ,
                         logger       ,
                         log_file     ,
                         yet_masked = False):
@@ -725,16 +723,39 @@ class Laplacian(BaseClass2D.BaseClass2D):
                 t_foregrounds = self._t_foregrounds
                 # Current transformation matrix's dictionary.
                 c_t_dict = self.get_trans(0)
-                t_n_center = utilities.apply_persp_trans(dimension, 
-                                                         n_center , 
+                oct_corners = utilities.get_corners_from_center(n_center,
+                                                                h)
+                n_oct_corners = len(oct_corners)
+                for i, corner in enumerate(oct_corners):
+                    is_corner_penalized = False
+                    corner = utilities.apply_persp_trans(dimension, 
+                                                         corner   , 
                                                          c_t_dict ,
                                                          logger   ,  
                                                          log_file)[: dimension]
-                (is_n_penalized, 
-                 n_polygon) = utilities.is_point_inside_polygons(t_n_center   ,
-                                                                 t_foregrounds,
-                                                                 logger       ,
-                                                                 log_file)
+                    (is_corner_penalized,
+                     n_polygon) = utilities.is_point_inside_polygons(corner       ,
+                                                                     t_foregrounds,
+                                                                     logger       ,
+                                                                     log_file)
+                    if (not is_corner_penalized):
+                        break
+                    else:
+                        if (i == (n_oct_corners - 1)):
+                            is_n_penalized = True
+                if (not is_n_penalized):
+                    if (is_penalized):
+                        f_t_adj_dict = self.get_trans_adj(n_polygon_n)
+                        n_center = utilities.apply_persp_trans(dimension, 
+                                                               n_center , 
+                                                               c_t_dict ,
+                                                               logger   ,  
+                                                               log_file)[0 : dimension]
+                        n_center = utilities.apply_persp_trans_inv(dimension   , 
+                                                                   n_center    , 
+                                                                   f_t_adj_dict,
+                                                                   logger      ,  
+                                                                   log_file)[0 : dimension]
             else:
                 # Is neighbour penalized.
                 is_n_penalized = utilities.check_oct_into_squares(n_center,
@@ -871,18 +892,18 @@ class Laplacian(BaseClass2D.BaseClass2D):
                         else:
                             if (i == (n_oct_corners - 1)):
                                 is_penalized = True
-                    #if (n_polygon):
-                    #    center = utilities.apply_persp_trans(dimension, 
-                    #                                         center   , 
-                    #                                         c_t_dict ,
-                    #                                         logger   ,  
-                    #                                         log_file)[: dimension]
-                    #    f_t_adj_dict = self.get_trans_adj(n_polygon)
-                    #    center = utilities.apply_persp_trans_inv(dimension   ,
-                    #                                             center      ,
-                    #                                             f_t_adj_dict,
-                    #                                             logger      ,
-                    #                                             log_file)[: dimension]
+                    if (is_penalized):
+                        center = utilities.apply_persp_trans(dimension, 
+                                                             center   , 
+                                                             c_t_dict ,
+                                                             logger   ,  
+                                                             log_file)[: dimension]
+                        f_t_adj_dict = self.get_trans_adj(n_polygon)
+                        center = utilities.apply_persp_trans_inv(dimension   ,
+                                                                 center      ,
+                                                                 f_t_adj_dict,
+                                                                 logger      ,
+                                                                 log_file)[: dimension]
                         
                 else:
                     is_penalized = utilities.check_oct_into_squares(center ,
@@ -942,6 +963,9 @@ class Laplacian(BaseClass2D.BaseClass2D):
                                                  octree                       ,
                                                  is_penalized                 ,
                                                  is_background                ,
+                                                 n_polygon if (mapping and    \
+                                                               is_background) \
+                                                 else None                    ,
                                                  logger                       ,
                                                  log_file)
                 else:
@@ -987,6 +1011,9 @@ class Laplacian(BaseClass2D.BaseClass2D):
                                                  octree                       ,
                                                  is_penalized                 ,
                                                  is_background                ,
+                                                 n_polygon if (mapping and    \
+                                                               is_background) \
+                                                 else None                    ,
                                                  logger                       ,
                                                  log_file)
             if not is_penalized:
@@ -1168,17 +1195,6 @@ class Laplacian(BaseClass2D.BaseClass2D):
                         else:
                             if (i == (n_oct_corners - 1)):
                                 is_penalized = True
-
-                    #t_center = utilities.apply_persp_trans(dimension, 
-                    #                                       center   , 
-                    #                                       c_t_dict ,
-                    #                                       logger   ,  
-                    #                                       log_file)[: dimension]
-                    #(is_penalized, 
-                    # n_polygon) = utilities.is_point_inside_polygons(t_center  ,
-                    #                                                 t_foregrounds,
-                    #                                                 logger    ,
-                    #                                                 log_file)
                 else:
                     is_penalized = utilities.check_oct_into_squares(center ,
                                                   	            p_bound,
@@ -1217,22 +1233,25 @@ class Laplacian(BaseClass2D.BaseClass2D):
                         
                         (m_index       , 
                          is_n_penalized,
-                         n_center) = self.check_neighbour(1            ,
-                                                          face         ,
-                                                          neighs       ,
-                                                          ghosts       ,
-                                                          octant       ,
-                                                          oct_offset   ,
-                                                          o_ranges     ,
-                                                          0            ,
-                                                          p_bound      ,
-                                                          h            ,
-                                                          None         ,
-                                                          octree       ,
-                                                          is_penalized ,
-                                                          is_background,
-                                                          logger       ,
-                                                          log_file     ,
+                         n_center) = self.check_neighbour(1                               ,
+                                                          face                            ,
+                                                          neighs                          ,
+                                                          ghosts                          ,
+                                                          octant                          ,
+                                                          oct_offset                      ,
+                                                          o_ranges                        ,
+                                                          0                               ,
+                                                          p_bound                         ,
+                                                          h                               ,
+                                                          None                            ,
+                                                          octree                          ,
+                                                          is_penalized                    ,
+                                                          is_background                   ,
+                                                          n_polygon if (mapping           \
+                                                                        and is_background)\
+                                                          else None                       ,
+                                                          logger                          ,
+                                                          log_file                        ,
                                                           yet_masked = True)
                         if not is_n_penalized:
                             indices.append(m_index)
@@ -1254,22 +1273,26 @@ class Laplacian(BaseClass2D.BaseClass2D):
                     for node in n_y_s:
                         (m_index       , 
                          is_n_penalized,
-                         n_center) = self.check_neighbour(2            ,
-                                                          node         ,
-                                                          neighs       ,
-                                                          ghosts       ,
-                                                          octant       ,
-                                                          oct_offset   ,
-                                                          o_ranges     ,
-                                                          0            ,
-                                                          p_bound      ,
-                                                          h            ,
-                                                          None         ,
-                                                          octree       ,
-                                                          is_penalized ,
-                                                          is_background,
-                                                          logger       ,
-                                                          log_file     ,
+                         n_center) = self.check_neighbour(2               ,
+                                                          node            ,
+                                                          neighs          ,
+                                                          ghosts          ,
+                                                          octant          ,
+                                                          oct_offset      ,
+                                                          o_ranges        ,
+                                                          0               ,
+                                                          p_bound         ,
+                                                          h               ,
+                                                          None            ,
+                                                          octree          ,
+                                                          is_penalized    ,
+                                                          is_background   ,
+                                                          n_polygon if    \
+                                                          (mapping and    \
+                                                           is_background) \
+                                                          else None       ,
+                                                          logger          ,
+                                                          log_file        ,
                                                           yet_masked = True)
                         if not is_n_penalized:
                             indices.append(m_index)
@@ -1905,7 +1928,7 @@ class Laplacian(BaseClass2D.BaseClass2D):
         for idx in idxs[0]:
             if (mapping):
                 # Foreground transformation matrix adjoint's dictionary.
-                f_t_adj_dict = self.get_trans_adj(keys[i][0])
+                f_t_adj_dict = self.get_trans_adj(keys[idx][0])
                 # Numpy ws'.
                 n_ws_first = utilities.h_c_w_first(dimension     ,
                                                    [centers[idx]],
