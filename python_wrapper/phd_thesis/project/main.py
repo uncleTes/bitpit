@@ -14,6 +14,7 @@ import time
 import ConfigParser
 import my_pablo_uniform
 import ExactSolution2D as ExactSolution2D
+#import Laplacian2D as Laplacian
 import Laplacian as Laplacian
 # ------------------------------------------------------------------------------
 
@@ -380,6 +381,7 @@ def compute(comm_dictionary     ,
            data_to_save (numpy.array) : array containings the data to be saved
                                         subsequently into the \"VTK\" file."""
 
+    #laplacian = Laplacian.Laplacian2D(comm_dictionary)
     laplacian = Laplacian.Laplacian(comm_dictionary)
     exact_solution = ExactSolution2D.ExactSolution2D(comm_dictionary)
 
@@ -434,6 +436,7 @@ def compute(comm_dictionary     ,
                                                    laplacian.sol.getArray())
     print("process " + str(comm_w.Get_rank()) + " " + str((norm_inf, norm_L2)))
     interpolate_sol = laplacian.reset_partially_solution()
+    #interpolate_sol = laplacian.interpolate_solution()
     if mapping:
         p_centers = [utilities.apply_persp_trans(dimension,
                                                  center   , 
