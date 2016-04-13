@@ -471,7 +471,7 @@ class Laplacian(BaseClass2D.BaseClass2D):
                     oct_corners = utilities.get_corners_from_center(center,
                                                                     h)
                     n_oct_corners = len(oct_corners)
-                    for i, corner in enumerate(oct_corners):
+                    for j, corner in enumerate(oct_corners):
                         c_c = False
                         corner = utilities.apply_persp_trans(dimension, 
                                                              corner   , 
@@ -486,7 +486,7 @@ class Laplacian(BaseClass2D.BaseClass2D):
                         if (not c_c):
                             break
                         else:
-                            if (i == (n_oct_corners - 1)):
+                            if (j == (n_oct_corners - 1)):
                                 check = True
                 else:
                     check = utilities.check_oct_into_square(center     ,
@@ -496,19 +496,6 @@ class Laplacian(BaseClass2D.BaseClass2D):
                                               	            self.logger,
                                               	            log_file)
                 if check:
-                    if (mapping):
-                        # Mapping logic center into the physical one... 
-                        center = utilities.apply_persp_trans(dimension          , 
-                                                             center[: dimension], 
-                                                             c_t_dict           ,
-                                                             logger             ,  
-                                                             log_file)[: dimension]
-                        # ...going back to the logical one.
-                        center = utilities.apply_persp_trans_inv(dimension          , 
-                                                                 center[: dimension], 
-                                                                 b_t_adj_dict       ,
-                                                                 logger             ,  
-                                                                 log_file)[: dimension]
                     # Can't use list as dictionary's keys.
                     # http://stackoverflow.com/questions/7257588/why-cant-i-use-a-list-as-a-dict-key-in-python
                     # https://wiki.python.org/moin/DictionaryKeys
@@ -529,7 +516,6 @@ class Laplacian(BaseClass2D.BaseClass2D):
                     # coefficients of the bilinear operator in the \"extension\"
                     # matrix.
                     b_values[i] = 0.0
-	 
         if (mapping):
             # Current transformation adjoint matrix's dictionary.
             c_t_adj_dict = self.get_trans_adj(grid) 
@@ -743,19 +729,19 @@ class Laplacian(BaseClass2D.BaseClass2D):
                     else:
                         if (i == (n_oct_corners - 1)):
                             is_n_penalized = True
-                if (not is_n_penalized):
-                    if (is_penalized):
-                        f_t_adj_dict = self.get_trans_adj(n_polygon_n)
-                        n_center = utilities.apply_persp_trans(dimension, 
-                                                               n_center , 
-                                                               c_t_dict ,
-                                                               logger   ,  
-                                                               log_file)[0 : dimension]
-                        n_center = utilities.apply_persp_trans_inv(dimension   , 
-                                                                   n_center    , 
-                                                                   f_t_adj_dict,
-                                                                   logger      ,  
-                                                                   log_file)[0 : dimension]
+                #if (not is_n_penalized):
+                #    if (is_penalized):
+                #        f_t_adj_dict = self.get_trans_adj(n_polygon_n)
+                #        n_center = utilities.apply_persp_trans(dimension, 
+                #                                               n_center , 
+                #                                               c_t_dict ,
+                #                                               logger   ,  
+                #                                               log_file)[0 : dimension]
+                #        n_center = utilities.apply_persp_trans_inv(dimension   , 
+                #                                                   n_center    , 
+                #                                                   f_t_adj_dict,
+                #                                                   logger      ,  
+                #                                                   log_file)[0 : dimension]
             else:
                 # Is neighbour penalized.
                 is_n_penalized = utilities.check_oct_into_squares(n_center,
@@ -858,8 +844,6 @@ class Laplacian(BaseClass2D.BaseClass2D):
             t_foregrounds = self._t_foregrounds
             # Current transformation matrix's dictionary.
             c_t_dict = self.get_trans(0)
-            # Current transformation matrix adjoint's dictionary.
-            c_t_adj_dict = self.get_trans_adj(0)
 
         for octant in octants:
             d_count, o_count = 0, 0
@@ -892,19 +876,6 @@ class Laplacian(BaseClass2D.BaseClass2D):
                         else:
                             if (i == (n_oct_corners - 1)):
                                 is_penalized = True
-                    if (is_penalized):
-                        center = utilities.apply_persp_trans(dimension, 
-                                                             center   , 
-                                                             c_t_dict ,
-                                                             logger   ,  
-                                                             log_file)[: dimension]
-                        f_t_adj_dict = self.get_trans_adj(n_polygon)
-                        center = utilities.apply_persp_trans_inv(dimension   ,
-                                                                 center      ,
-                                                                 f_t_adj_dict,
-                                                                 logger      ,
-                                                                 log_file)[: dimension]
-                        
                 else:
                     is_penalized = utilities.check_oct_into_squares(center ,
                                                       	            p_bound,
@@ -914,8 +885,8 @@ class Laplacian(BaseClass2D.BaseClass2D):
                                                   	            log_file)
             if is_penalized:
                 self._nln[octant] = -1
-                key = (grid    ,
-                       g_octant,
+                key = (n_polygon,
+                       g_octant ,
                        h)
                 if self._p_inter:
                     key = key + (-1, -1,)
@@ -1135,7 +1106,7 @@ class Laplacian(BaseClass2D.BaseClass2D):
         # TODO: set this check to \"True\", solving the problem you have now on
         # the numeration of nnz.
         self._b_mat.setOption(self._b_mat.Option.NEW_NONZERO_ALLOCATION_ERR, 
-                              True)
+                              False)
         
         o_ranges = self.get_ranges()
         dimension = self._dim
@@ -1793,12 +1764,30 @@ class Laplacian(BaseClass2D.BaseClass2D):
             # TODO: add coefficients^2 for 3D.
             if (dimension == 3):
                 pass
+            
+            b_t_dict = self.get_trans(0)
+            for i in xrange(0, len(centers)):
+                    centers[i] = utilities.apply_persp_trans(dimension , 
+                                                             centers[i], 
+                                                             b_t_dict ,
+                                                             logger   ,  
+                                                             log_file)[: dimension]
+                    c_t_adj_dict = self.get_trans_adj(proc_grid)
+                    centers[i] = utilities.apply_persp_trans_inv(dimension   ,
+                                                                 centers[i]  ,
+                                                                 c_t_adj_dict,
+                                                                 logger      ,
+                                                                 log_file)[: dimension]
         # Vectorized functions are just syntactic sugar:
         # http://stackoverflow.com/questions/7701429/efficient-evaluation-of-a-function-at-every-cell-of-a-numpy-array
         # http://stackoverflow.com/questions/8079061/function-application-over-numpys-matrix-row-column
         # http://stackoverflow.com/questions/6824122/mapping-a-numpy-array-in-place
         # http://stackoverflow.com/questions/9792925/how-to-speed-up-enumerate-for-numpy-array-how-to-enumerate-over-numpy-array-ef
-        local_idxs = numpy.array([octree.get_point_owner_idx(center) for 
+        local_idxs = numpy.array([octree.get_point_owner_idx((center[0],
+                                                              center[1],
+                                                              center[2] if    \
+                                                              (dimension == 3)\
+                                                              else 0)) for 
                                   center in centers])
         global_idxs = local_idxs + o_ranges[0]
         # \"numpy.where\" returns indices of the elements which satisfy the
@@ -1889,8 +1878,8 @@ class Laplacian(BaseClass2D.BaseClass2D):
         mapping = self._mapping
         proc_grid = self._proc_g
         if (mapping):
-            current_trans_dict = self.get_trans(proc_grid)
-            current_trans_dict_adj = self.get_trans_adj(proc_grid) 
+            c_t_adj_dict = self.get_trans(0)
+            #b_t_adj_dict = self.get_trans_adj(0) 
 
         start = time.time()
         list_edg = list(self._n_edg)
@@ -1903,10 +1892,25 @@ class Laplacian(BaseClass2D.BaseClass2D):
         keys = numpy.array([list_edg[i][0] for i in 
                             range(0, l_l_edg)]).reshape(l_l_edg, l_k)
         h2s = keys[:, 4] * keys[:, 4]
-        centers = numpy.array([list_edg[i][1][: dimension] for i in 
-                               range(0, l_l_edg)]).reshape(l_l_edg, l_s)
-
+        centers = numpy.array([list_edg[i][1][0][: dimension] for i in 
+                               range(0, l_l_edg)]).reshape(l_l_edg, dimension)
         n_centers = centers.shape[0]
+        if (mapping):
+            t_centers = [None] * n_centers
+            for i in xrange(0, n_centers):
+                f_t_dict = self.get_trans(int(keys[i][0]))
+                t_centers[i] = utilities.apply_persp_trans(dimension , 
+                                                           centers[i], 
+                                                           f_t_dict  ,
+                                                           logger    ,  
+                                                           log_file)
+                t_centers[i] = utilities.apply_persp_trans_inv(dimension   , 
+                                                               t_centers[i], 
+                                                               c_t_adj_dict,
+                                                               logger      ,  
+                                                               log_file)
+        else:
+            t_centers = centers
         #TODO: understand why here we need to pass \"center[0:2]\" to the 
         # function \"get_point_owner_dx\", while in the previous version of
         # PABLitO we passed all the array \"center\". I think that it is due to
@@ -1917,7 +1921,7 @@ class Laplacian(BaseClass2D.BaseClass2D):
                                                               center[2] if    \
                                                               (dimension == 3)\
                                                               else 0)) for    \
-                                  center in centers])
+                                  center in t_centers])
         global_idxs = local_idxs + o_ranges[0]
 
         idxs = numpy.where(numpy.logical_and((global_idxs >= 
@@ -1951,21 +1955,21 @@ class Laplacian(BaseClass2D.BaseClass2D):
                 if (dimension == 3):
                     pass
                 
-            center_cell_container = octree.get_center(local_idxs[idx])[:2]
-            location = utilities.points_location(centers[idx],
+            center_cell_container = octree.get_center(local_idxs[idx])[: dimension]
+            location = utilities.points_location(t_centers[idx],
                                                  center_cell_container)
             neigh_centers, neigh_indices = ([] for i in range(0, 2)) 
             # New neighbour indices.
             n_n_i = []
             (neigh_centers, 
-             neigh_indices)  = self.find_right_neighbours(location       ,
-                                                          local_idxs[idx],
-                                                          o_ranges[0]    ,
-                                                          True           ,
+             neigh_indices)  = self.find_right_neighbours(location         ,
+                                                          local_idxs[idx]  ,
+                                                          o_ranges[0]      ,
+                                                          True             ,
                                                           int(keys[idx][2]),
                                                           int(keys[idx][3]))
 
-            bil_coeffs = utilities.bil_coeffs(centers[idx],
+            bil_coeffs = utilities.bil_coeffs(t_centers[idx],
                                               neigh_centers)
             for i, index in enumerate(neigh_indices):
                 if not isinstance(index, basestring):
