@@ -1907,8 +1907,7 @@ class Laplacian(BaseClass2D.BaseClass2D):
         mapping = self._mapping
         proc_grid = self._proc_g
         if (mapping):
-            c_t_adj_dict = self.get_trans(0)
-            #b_t_adj_dict = self.get_trans_adj(0) 
+            c_t_adj_dict = self.get_trans(proc_grid)
 
         start = time.time()
         list_edg = list(self._n_edg)
@@ -1923,6 +1922,10 @@ class Laplacian(BaseClass2D.BaseClass2D):
         h2s = keys[:, 4] * keys[:, 4]
         centers = numpy.array([list_edg[i][1][0][: dimension] for i in 
                                range(0, l_l_edg)]).reshape(l_l_edg, dimension)
+        # Others' centers.
+        o_centers = numpy.array([list_edg[i][1][0][dimension : (dimension * 2)]\
+                                 for i in range(0, l_l_edg)]).reshape(l_l_edg, 
+                                                                      dimension)
         n_centers = centers.shape[0]
         if (mapping):
             t_centers = [None] * n_centers
@@ -1952,21 +1955,25 @@ class Laplacian(BaseClass2D.BaseClass2D):
                                                               else 0)) for    \
                                   center in t_centers])
         global_idxs = local_idxs + o_ranges[0]
-
         idxs = numpy.where(numpy.logical_and((global_idxs >= 
                                               ids_octree_contained[0]),
                                              (global_idxs <= 
                                               ids_octree_contained[1])))
-
         for idx in idxs[0]:
             if (mapping):
                 # Foreground transformation matrix adjoint's dictionary.
-                f_t_adj_dict = self.get_trans_adj(keys[idx][0])
+                f_t_adj_dict = self.get_trans_adj(int(keys[idx][0]))
+                f_t_dict = self.get_trans(int(keys[idx][0]))
+                t_o_center =  utilities.apply_persp_trans(dimension     , 
+                                                          o_centers[idx], 
+                                                          f_t_dict ,
+                                                          logger   ,  
+                                                          log_file)[: dimension]
                 # Numpy ws'.
-                n_ws_first = utilities.h_c_w_first(dimension     ,
-                                                   [centers[idx]],
-                                                   f_t_adj_dict  ,
-                                                   logger        ,
+                n_ws_first = utilities.h_c_w_first(dimension   ,
+                                                   [t_o_center],
+                                                   f_t_adj_dict,
+                                                   logger      ,
                                                    log_file)
                 # \"adj_matrix[0][0]\"...
                 A00 = f_t_adj_dict[0][0]
