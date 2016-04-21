@@ -299,6 +299,7 @@ class Laplacian(BaseClass2D.BaseClass2D):
         mapping = self._mapping
         proc_grid = self._proc_g
         dimension = self._dim
+
         if (mapping):
             # Current transformation matrix's dictionary.
             c_t_dict = self.get_trans(proc_grid)
@@ -331,6 +332,7 @@ class Laplacian(BaseClass2D.BaseClass2D):
                                                    		   y_s     ,
                                                                    z_s     ,
                                                                    c_t_dict,
+                                                                   #False)
                                                                    mapping)
 
         msg = "Evaluated boundary conditions"
@@ -454,8 +456,24 @@ class Laplacian(BaseClass2D.BaseClass2D):
         (b_values, c_neighs) = self.eval_b_c(b_centers,
                                              b_f_o_n  ,
                                              b_codim)
+        if (mapping):
+            t_c_neighs = []
+            # Current transformation matrix's dictionary.
+            c_t_dict = self.get_trans(grid)
+            for i, c_neigh in enumerate(b_centers):
+                t_c_neigh =  utilities.apply_persp_trans(dimension, 
+                                                         c_neigh  , 
+                                                         c_t_dict ,
+                                                         logger   ,  
+                                                         log_file)[: dimension]
+                t_c_neighs.append(t_c_neigh)
         # Converting from numpy array to python list.
 	b_values = b_values.tolist()
+
+        #if grid == 1:
+        #    for i,v in enumerate(b_values):
+        #        b_values[i] = 0.0
+
         # Grids not of the background: equal to number >= 1.
         if grid:
             if (mapping):
@@ -468,26 +486,15 @@ class Laplacian(BaseClass2D.BaseClass2D):
                 check = False
                 # Check if foreground grid is inside the background one.
                 if (mapping):
-                    oct_corners = utilities.get_corners_from_center(center,
-                                                                    h)
-                    n_oct_corners = len(oct_corners)
-                    for j, corner in enumerate(oct_corners):
-                        c_c = False
-                        corner = utilities.apply_persp_trans(dimension, 
-                                                             corner   , 
-                                                             c_t_dict ,
-                                                             logger   ,  
-                                                             log_file)[: dimension]
-                        # Check corner.
-                        c_c = utilities.is_point_inside_polygon(corner      ,
-                                                                t_background,
-                                                                logger      ,
-                                                                log_file)
-                        if (not c_c):
-                            break
-                        else:
-                            if (j == (n_oct_corners - 1)):
-                                check = True
+                    t_center =  utilities.apply_persp_trans(dimension, 
+                                                            center   , 
+                                                            c_t_dict ,
+                                                            logger   ,  
+                                                            log_file)[: dimension]
+                    check = utilities.is_point_inside_polygon(t_center    ,
+                                                              t_background,
+                                                              logger      ,
+                                                              log_file)
                 else:
                     check = utilities.check_oct_into_square(center     ,
                                                 	    b_bound    ,
@@ -501,14 +508,14 @@ class Laplacian(BaseClass2D.BaseClass2D):
                     # https://wiki.python.org/moin/DictionaryKeys
                     key = (grid        , # Grid (0 is for the background grid)
                            b_indices[i], # Masked global index of the octant
-                           b_f_o_n[i]  , # Boundary face
+                           b_f_o_n[i]  , # Boundary face or node
                            b_codim[i]  , # Boundary codimension
                            h)            # Edge's length
                     # We store the center of the cell on the boundary.
-                    t_value = tuple(center)
-                    n_mask = 41
-                    stencil = (t_value + ((-1,) * (n_mask if (dimension == 2)\
-                                                          else (n_mask - 1)))\
+                    t_value = tuple(center[: dimension])
+                    t_value = t_value + tuple(b_centers[i][: dimension])
+                    n_mask = 43 - len(t_value)
+                    stencil = (t_value + ((-1,) * (n_mask))\
                                if (self._p_inter) else t_value)
                     self._edl.update({key : stencil})
                     # The new corresponding value inside \"b_values\" would be
@@ -520,10 +527,10 @@ class Laplacian(BaseClass2D.BaseClass2D):
             # Current transformation adjoint matrix's dictionary.
             c_t_adj_dict = self.get_trans_adj(grid) 
             # Numpy ws'.
-            n_ws_first = utilities.h_c_w_first(dimension   ,
-                                               c_neighs    ,
-                                               c_t_adj_dict,
-                                               logger      ,
+            n_ws_first = utilities.h_c_w_first(dimension    ,
+                                               t_c_neighs   ,
+                                               c_t_adj_dict ,
+                                               logger       ,
                                                log_file)
             n_values = len(b_values)
             # Temporary multipliers.
