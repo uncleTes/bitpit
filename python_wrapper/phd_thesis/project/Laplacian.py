@@ -2045,6 +2045,230 @@ class Laplacian(BaseClass2D.BaseClass2D):
     
     # --------------------------------------------------------------------------
     # Returns the right neighbours for an octant, being them of edges or nodes.
+    #def find_right_neighbours(self                 , 
+    #                          location             , 
+    #                          current_octant       ,
+    #                          start_octant         ,
+    #                          is_background = False,
+    #                          f_o_n_i = -1         ,
+    #                          codim = None):
+    #    """Method which compute the right 4 neighbours for the octant 
+    #       \"current_octant\", considering first the label \"location\" to
+    #       indicate in what directions go to choose the neighborhood.
+
+    #       Arguments:
+    #            location (string) : indicates what cardinal quadrant choice
+    #                                (\"nordovest\", \"nordest\", \"sudovest\",
+    #                                 \"sudest\").
+    #            current_octant (int) : local index of the current octant.
+    #            start_octant (int) : global index of the first contained octant
+    #                                 in the process.
+    #            is_background (bool) : indicates if we are or not on the 
+    #                                   background grid. On this choice depends
+    #                                   how the indices of the neighbours will
+    #                                   be evaluated.
+    #            f_o_n_i (int) : face or node index, depending on the codimension
+    #                            (if 1 will be a face, if 2 will be a node).
+    #            codim (int) : codimension of the neighbour (see above).
+
+    #       Returns:
+    #            (centers, indices) (tuple of lists) : tuple containing the lists
+    #                                                  of centers and indices of
+    #                                                  the neighbours."""
+
+    #    py_oct = self._octree.get_octant(current_octant)
+    #    ordered_points = {}
+    #    centers = []
+    #    indices = []
+    #    grid = self._proc_g
+    #    dimension = self._dim
+    #    # Ghosts' deplacement.
+    #    g_d = 0
+    #    if grid:
+    #        for i in range(0, grid):
+    #            g_d = g_d + self._oct_f_g[i]
+
+    #    if (codim == 2):
+    #        if (is_background):
+    #            if (f_o_n_i % 2 == 1):
+    #                ordered_points.update({0 : (1, 2)})
+    #                ordered_points.update({1 : (2, 1)})
+    #                ordered_points.update({2 : None})
+    #                ordered_points.update({3 : (1, 1)})
+    #            elif (f_o_n_i == 0):
+    #                ordered_points.update({0 : (2, 0)})
+    #                ordered_points.update({1 : (1, 2)})
+    #                ordered_points.update({2 : (1, 0)})
+    #                ordered_points.update({3 : None})
+    #            else:
+    #                ordered_points.update({0 : None})
+    #                ordered_points.update({1 : (1, 1)})
+    #                ordered_points.update({2 : (1, 3)})
+    #                ordered_points.update({3 : (2, 3)})
+    #        else:
+    #            print("pappa")
+    #                
+    #    else:
+    #        if location == "nordovest":
+    #            # Adding 1) number of neighbour, 2) (codim, number of face/node).
+    #            if is_background:
+    #                if (f_o_n_i == 2):
+    #                    ordered_points.update({0 : (2, 0)})
+    #                    ordered_points.update({1 : (1, 2)})
+    #                    ordered_points.update({2 : (1, 0)})
+    #                    ordered_points.update({3 : None})
+    #                elif (f_o_n_i == 1):
+    #                    ordered_points.update({0 : None})
+    #                    ordered_points.update({1 : (1, 1)})
+    #                    ordered_points.update({2 : (1, 3)})
+    #                    ordered_points.update({3 : (2, 3)})
+    #                # TODO: think about this, if it is the right thing to do for
+    #                # grids not exactly coincidents.
+    #                else:
+    #                    ordered_points.update({0 : (1, 0)})
+    #                    ordered_points.update({1 : None})
+    #                    ordered_points.update({2 : (2, 2)})
+    #                    ordered_points.update({3 : (1, 3)})
+    #            else:
+    #                ordered_points.update({0 : (1, 0)})
+    #                ordered_points.update({1 : None})
+    #                ordered_points.update({2 : (2, 2)})
+    #                ordered_points.update({3 : (1, 3)})
+    #        elif location == "nordest":
+    #            if is_background:
+    #                if (f_o_n_i == 2):
+    #                    ordered_points.update({0 : (1, 2)})
+    #                    ordered_points.update({1 : (2, 1)})
+    #                    ordered_points.update({2 : None})
+    #                    ordered_points.update({3 : (1, 1)})
+    #                elif (f_o_n_i == 0):
+    #                    ordered_points.update({0 : (1, 0)})
+    #                    ordered_points.update({1 : None})
+    #                    ordered_points.update({2 : (2, 2)})
+    #                    ordered_points.update({3 : (1, 3)})
+    #                # TODO: think about this, if it is the right thing to do for
+    #                # grids not exactly coincidents.
+    #                else:
+    #                    ordered_points.update({0 : None})
+    #                    ordered_points.update({1 : (1, 1)})
+    #                    ordered_points.update({2 : (1, 3)})
+    #                    ordered_points.update({3 : (2, 3)})
+    #            else:
+    #                ordered_points.update({0 : None})
+    #                ordered_points.update({1 : (1, 1)})
+    #                ordered_points.update({2 : (1, 3)})
+    #                ordered_points.update({3 : (2, 3)})
+    #        elif location == "sudovest":
+    #            if is_background:
+    #                if (f_o_n_i == 1):
+    #                    ordered_points.update({0 : (1, 2)})
+    #                    ordered_points.update({1 : (2, 1)})
+    #                    ordered_points.update({2 : None})
+    #                    ordered_points.update({3 : (1, 1)})
+    #                elif (f_o_n_i == 3):
+    #                    ordered_points.update({0 : (1, 0)})
+    #                    ordered_points.update({1 : None})
+    #                    ordered_points.update({2 : (2, 2)})
+    #                    ordered_points.update({3 : (1, 3)})
+    #                # TODO: think about this, if it is the right thing to do for
+    #                # grids not exactly coincidents.
+    #                else:
+    #                    ordered_points.update({0 : (2, 0)})
+    #                    ordered_points.update({1 : (1, 2)})
+    #                    ordered_points.update({2 : (1, 0)})
+    #                    ordered_points.update({3 : None})
+    #            else:
+    #                ordered_points.update({0 : (2, 0)})
+    #                ordered_points.update({1 : (1, 2)})
+    #                ordered_points.update({2 : (1, 0)})
+    #                ordered_points.update({3 : None})
+    #        elif location == "sudest":
+    #            if is_background:
+    #                if (f_o_n_i == 0):
+    #                    ordered_points.update({0 : (2, 0)})
+    #                    ordered_points.update({1 : (1, 2)})
+    #                    ordered_points.update({2 : (1, 0)})
+    #                    ordered_points.update({3 : None})
+    #                elif (f_o_n_i == 3):
+    #                    ordered_points.update({0 : None})
+    #                    ordered_points.update({1 : (1, 1)})
+    #                    ordered_points.update({2 : (1, 3)})
+    #                    ordered_points.update({3 : (2, 3)})
+    #                # TODO: think about this, if it is the right thing to do for
+    #                # grids not exactly coincidents.
+    #                else:
+    #                    ordered_points.update({0 : (1, 2)})
+    #                    ordered_points.update({1 : (2, 1)})
+    #                    ordered_points.update({2 : None})
+    #                    ordered_points.update({3 : (1, 1)})
+    #            else:
+    #                ordered_points.update({0 : (1, 2)})
+    #                ordered_points.update({1 : (2, 1)})
+    #                ordered_points.update({2 : None})
+    #                ordered_points.update({3 : (1, 1)})
+    #    # Using \"sorted\" to be sure that values of the dict 
+    #    # \"ordered_points\" are ordered by keys.
+    #    for q_point in sorted(ordered_points.keys()):
+    #        edge_or_node = ordered_points[q_point]
+    #        if edge_or_node is None:
+    #            centers.append(self._octree.get_center(current_octant)[: dimension])
+    #            index = current_octant
+    #            m_index = self.mask_octant(index + start_octant)
+    #            if is_background:
+    #                m_index = index + start_octant
+    #            indices.append(m_index)
+    #        else:
+    #            neighs, ghosts = ([] for i in range(0, 2))
+    #            (neighs, 
+    #             ghosts) = self._octree.find_neighbours(current_octant ,
+    #                                                    edge_or_node[1],
+    #                                                    edge_or_node[0],
+    #                                                    neighs         ,
+    #                                                    ghosts)
+    #            # Check if it is really a neighbour of edge or node. If not,
+    #            # it means that we are near the boundary and so...
+    #            if len(neighs) is not 0:
+    #                # Neighbour is into the same process, so is local.
+    #                if not ghosts[0]:
+    #                    cell_center = self._octree.get_center(neighs[0])[: dimension]
+    #                    centers.append(cell_center)
+    #                    index = neighs[0]
+    #                    m_index = self.mask_octant(index + start_octant)
+    #                    if is_background:
+    #                        m_index = index + start_octant
+    #                    indices.append(m_index)
+    #                else:
+    #                    # In this case, the quas(/oc)tree is no more local
+    #                    # into the current process, so we have to find it
+    #                    # globally.
+    #                    index = self._octree.get_ghost_global_idx(neighs[0])
+    #                    # \".index\" give us the index of 
+    #                    # \"self._global_ghosts\" that contains the index
+    #                    # of the global ghost quad(/oc)tree previously
+    #                    # found and stored in \"index\".
+    #                    py_ghost_oct = self._octree.get_ghost_octant(neighs[0])
+    #                    cell_center = self._octree.get_center(py_ghost_oct, 
+    #                                                          True)[: dimension]
+    #                    centers.append(cell_center)
+    #                    m_index = self.mask_octant(index)
+    #                    if is_background:
+    #                        m_index = index
+    #                    indices.append(m_index + g_d)
+    #            # ...we need to evaluate boundary values.
+    #            else:
+    #                border_center = self._octree.get_center(current_octant)[: dimension]
+    #                center = self.neighbour_centers(border_center  ,
+    #                                                edge_or_node[0],
+    #                                                edge_or_node[1])
+
+    #                centers.append(center)
+    #                indices.append("outside_bg")
+
+    #    return (centers, indices)
+    # --------------------------------------------------------------------------
+    
+    ## --------------------------------------------------------------------------
+    ## Returns the right neighbours for an octant, being them of edges or nodes.
     def find_right_neighbours(self                 , 
                               location             , 
                               current_octant       ,
@@ -2212,7 +2436,7 @@ class Laplacian(BaseClass2D.BaseClass2D):
                 ordered_points.update({2 : None})
                 ordered_points.update({3 : (1, 1)})
         # Using \"sorted\" to be sure that values of the dict 
-	# \"ordered_points\" are ordered by keys.
+        # \"ordered_points\" are ordered by keys.
         for q_point in sorted(ordered_points.keys()):
             edge_or_node = ordered_points[q_point]
             if edge_or_node is None:
@@ -2225,7 +2449,7 @@ class Laplacian(BaseClass2D.BaseClass2D):
             else:
                 neighs, ghosts = ([] for i in range(0, 2))
                 (neighs, 
-	         ghosts) = self._octree.find_neighbours(current_octant ,
+                 ghosts) = self._octree.find_neighbours(current_octant ,
                                                         edge_or_node[1],
                                                         edge_or_node[0],
                                                         neighs         ,
@@ -2270,7 +2494,7 @@ class Laplacian(BaseClass2D.BaseClass2D):
                     indices.append("outside_bg")
 
         return (centers, indices)
-    # --------------------------------------------------------------------------
+    ## --------------------------------------------------------------------------
     
     # --------------------------------------------------------------------------
     # Apply restriction/prolongation operators.
