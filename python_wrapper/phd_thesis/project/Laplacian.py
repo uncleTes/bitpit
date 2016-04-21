@@ -1752,12 +1752,13 @@ class Laplacian(BaseClass2D.BaseClass2D):
         centers = [(stencils[i][1], stencils[i][2], 0) for i in range(0, l_l_edg)]
         n_centers = len(centers)
         if (mapping):
-            # Numpy ws'.
-            n_ws_first = utilities.h_c_w_first(dimension   ,
-                                               centers     ,
-                                               b_t_adj_dict,
-                                               logger      ,
-                                               log_file)
+            t_centers = [None] * n_centers
+            ## Numpy ws'.
+            #n_ws_first = utilities.h_c_w_first(dimension   ,
+            #                                   centers     ,
+            #                                   b_t_adj_dict,
+            #                                   logger      ,
+            #                                   log_file)
             # \"adj_matrix[0][0]\"...
             A00 = b_t_adj_dict[0][0]
             # ...and so on.
@@ -1775,18 +1776,25 @@ class Laplacian(BaseClass2D.BaseClass2D):
                 pass
             
             b_t_dict = self.get_trans(0)
-            for i in xrange(0, len(centers)):
+            for i in xrange(0, n_centers):
                     centers[i] = utilities.apply_persp_trans(dimension , 
                                                              centers[i], 
                                                              b_t_dict ,
                                                              logger   ,  
                                                              log_file)[: dimension]
+                    t_centers[i] = centers[i]
                     c_t_adj_dict = self.get_trans_adj(proc_grid)
                     centers[i] = utilities.apply_persp_trans_inv(dimension   ,
                                                                  centers[i]  ,
                                                                  c_t_adj_dict,
                                                                  logger      ,
                                                                  log_file)[: dimension]
+            # Numpy ws'.
+            #n_ws_first = utilities.h_c_w_first(dimension   ,
+            #                                   t_centers   ,
+            #                                   b_t_adj_dict,
+            #                                   logger      ,
+            #                                   log_file)
         # Vectorized functions are just syntactic sugar:
         # http://stackoverflow.com/questions/7701429/efficient-evaluation-of-a-function-at-every-cell-of-a-numpy-array
         # http://stackoverflow.com/questions/8079061/function-application-over-numpys-matrix-row-column
@@ -1821,7 +1829,7 @@ class Laplacian(BaseClass2D.BaseClass2D):
                                               neigh_centers)
 
             if (mapping):
-                w_first2 = n_ws_first[idx] * n_ws_first[idx]
+                #w_first2 = n_ws_first[idx] * n_ws_first[idx]
                 # Checkout how the \"stencil\" is created in the function
                 # \"create_mask\".
                 for i in xrange(6, len(stencils[idx]), 5):
@@ -1829,6 +1837,18 @@ class Laplacian(BaseClass2D.BaseClass2D):
                     f_o_n = int(stencils[idx][i + 1])
                     row_index = int(stencils[idx][i - 3])
                     h2 = h2s[idx]
+                    n_center = [stencils[idx][i - 2], stencils[idx][i - 1]]
+                    t_n_center = utilities.apply_persp_trans(dimension, 
+                                                             n_center , 
+                                                             b_t_dict ,
+                                                             logger   ,  
+                                                             log_file)[: dimension]
+                    n_ws_first = utilities.h_c_w_first(dimension   ,
+                                                       [t_n_center],
+                                                       b_t_adj_dict,
+                                                       logger      ,
+                                                       log_file)
+                    w_first2 = n_ws_first * n_ws_first
                     if (b_codim == 1):
                         t_m = (A002 + A102) if ((f_o_n == 0) or (f_o_n == 1)) \
                                             else (A012 + A112)
