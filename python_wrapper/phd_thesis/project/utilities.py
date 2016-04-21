@@ -672,8 +672,8 @@ def apply_persp_trans_inv(dimension   ,
                           logger      ,
                           log_file):
     # Numpy point.
-    np_point = numpy.asarray(point[0 : dimension],
-                             dtype = numpy.float64)
+    np_point = numpy.array(point[0 : dimension],
+                           dtype = numpy.float64)
     dim = np_point.shape[0]
     # Homogeneous coordinates.
     np_point = numpy.append(np_point, 1)
@@ -718,8 +718,9 @@ def apply_persp_trans(dimension   ,
                       logger      ,
                       log_file):
     # Numpy point.
-    np_point = numpy.asarray(point[0 : dimension], 
-                             dtype = numpy.float64)
+    # http://stackoverflow.com/questions/14415741/numpy-array-vs-asarray
+    np_point = numpy.array(point[0 : dimension], 
+                           dtype = numpy.float64)
     # Homogeneous coordinates.
     np_point = numpy.append(np_point, 1)
     # Transformed point.
