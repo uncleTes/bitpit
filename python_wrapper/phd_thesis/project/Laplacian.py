@@ -736,19 +736,6 @@ class Laplacian(BaseClass2D.BaseClass2D):
                     else:
                         if (i == (n_oct_corners - 1)):
                             is_n_penalized = True
-                #if (not is_n_penalized):
-                #    if (is_penalized):
-                #        f_t_adj_dict = self.get_trans_adj(n_polygon_n)
-                #        n_center = utilities.apply_persp_trans(dimension, 
-                #                                               n_center , 
-                #                                               c_t_dict ,
-                #                                               logger   ,  
-                #                                               log_file)[0 : dimension]
-                #        n_center = utilities.apply_persp_trans_inv(dimension   , 
-                #                                                   n_center    , 
-                #                                                   f_t_adj_dict,
-                #                                                   logger      ,  
-                #                                                   log_file)[0 : dimension]
             else:
                 # Is neighbour penalized.
                 is_n_penalized = utilities.check_oct_into_squares(n_center,
@@ -1186,13 +1173,20 @@ class Laplacian(BaseClass2D.BaseClass2D):
                     # Temporary multiplier.
                     t_m = -4.0
                 else:
+                    # Current transformation matrix's dictionary.
+                    c_t_dict = self.get_trans(grid)
+                    t_center = utilities.apply_persp_trans(dimension, 
+                                                           center   , 
+                                                           c_t_dict ,
+                                                           logger   ,  
+                                                           log_file)[: dimension]
                     w_first = utilities.h_c_w_first(dimension ,
                                                     # Doing a list of just one
                                                     # list, to use numpy. For
                                                     # example, with dimension 2
                                                     #\"[center]\" will be 
                                                     # \"[[x, y]]\".
-                                                    [center]  ,
+                                                    [t_center],
                                                     c_t_a_dict,
                                                     logger    ,
                                                     log_file)
@@ -1279,6 +1273,13 @@ class Laplacian(BaseClass2D.BaseClass2D):
                                               else (t_m * (-0.5))
                             value_to_append = (1.0 / h2) * t_m
                             values.append(value_to_append)
+                #if not is_background:
+                #    for i,v in enumerate(values):
+                #        if i == 0:
+                #            values[i] = 1.0
+                #        else:
+                #            values[i] = 0.0
+                #print(str(self._comm_w.Get_rank()) + " " + str(values))
                 self._b_mat.setValues(m_g_octant, # Row
                                       indices   , # Columns
                                       values)     # Values to be inserted
@@ -1522,6 +1523,7 @@ class Laplacian(BaseClass2D.BaseClass2D):
         # How many iterations are done.
         it_number = ksp.getIterationNumber()
         print(ksp.getConvergedReason())
+        #self._b_mat.view()
 
         msg = "Evaluated solution"
         extra_msg = "Using \"" + str(it_number) + "\" iterations."
