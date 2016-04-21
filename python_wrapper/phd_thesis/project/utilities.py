@@ -626,7 +626,7 @@ def h_c_w_first(dimension   ,
         points = in_points
     else: 
         points = numpy.array(in_points)
-    x_s = numpy.multiply(points[:, 0], coefficients[0][dim])    
+    x_s = numpy.multiply(points[:, 0], coefficients[0][dim])
     y_s = numpy.multiply(points[:, 1], coefficients[1][dim])
     if (dim == 3):
         z_s = numpy.multiply(points[:, 2], coefficients[2][dim])
@@ -635,8 +635,11 @@ def h_c_w_first(dimension   ,
     if (dim == 3):
         i_w_first = numpy.add(i_w_first, z_s)
     i_w_first = numpy.add(i_w_first, coefficients[dim][dim])
-
-    return numpy.true_divide(1, i_w_first)    
+    w_first = numpy.true_divide(1.0, i_w_first)
+    if (w_first.shape[0] == 1):
+        return w_first[0]
+    else:
+        return w_first
 
 def compute_w_first(logger,
                     point,
