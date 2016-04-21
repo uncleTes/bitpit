@@ -244,15 +244,17 @@ def get_corners_from_center(center,
 def is_point_inside_polygons(point   ,
                              polygons,
                              logger  ,
-                             log_file):
+                             log_file,
+                             threshold = 0.0):
     inside = False
 
     if isinstance(polygons, list):
         for i, polygon in enumerate(polygons):
-            inside = is_point_inside_polygon(point  ,
-                                             polygon,
-                                             logger ,
-                                             log_file)
+            inside = is_point_inside_polygon(point   ,
+                                             polygon ,
+                                             logger  ,
+                                             log_file,
+                                             threshold)
             if (inside):
                 return (inside, i)
     else:
@@ -266,10 +268,11 @@ def is_point_inside_polygons(point   ,
 # https://www.ecse.rpi.edu/Homepages/wrf/Research/Short_Notes/pnpoly.html ---> Better link
 # http://www.ariel.com.au/a/python-point-int-poly.html
 # http://stackoverflow.com/questions/16625507/python-checking-if-point-is-inside-a-polygon
-def is_point_inside_polygon(point  ,
-                            polygon,
-                            logger ,
-                            log_file):
+def is_point_inside_polygon(point   ,
+                            polygon ,
+                            logger  ,
+                            log_file,
+                            threshold = 0.0):
 
     n_vert = len(polygon)
     x, y = point
@@ -278,13 +281,15 @@ def is_point_inside_polygon(point  ,
     if isinstance(polygon, list):
         for i in xrange(0, n_vert):
             if (i == 0):
-                j = n_vert -1
+                j = n_vert - 1
             else:
                 j = i - 1
             i_x, i_y = polygon[i]
             j_x, j_y = polygon[j]
+            # TODO: understand where to put the threshold.
             if (((i_y > y) != (j_y > y)) and
-                (x < (j_x - i_x) * (y - i_y) / (j_y - i_y) + i_x)):
+                ((x + threshold ) < 
+                 (((j_x - i_x) * (y - i_y)) / (j_y - i_y)) + i_x)):
                 inside = not inside
         return inside
     else:
