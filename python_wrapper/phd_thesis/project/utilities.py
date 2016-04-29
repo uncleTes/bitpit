@@ -659,16 +659,16 @@ def h_c_w_first(dimension   ,
     y_s = numpy.multiply(points[:, 1], coefficients[1][dim])
     if (dim == 3):
         z_s = numpy.multiply(points[:, 2], coefficients[2][dim])
-    # Inverse of w'.
-    i_w_first = numpy.add(x_s, y_s)
+    # Inverse of w's (made to be done for vectors).
+    i_w_s_first = numpy.add(x_s, y_s)
     if (dim == 3):
-        i_w_first = numpy.add(i_w_first, z_s)
-    i_w_first = numpy.add(i_w_first, coefficients[dim][dim])
-    w_first = numpy.true_divide(1.0, i_w_first)
-    if (w_first.shape[0] == 1):
-        return w_first[0]
+        i_w_s_first = numpy.add(i_w_s_first, z_s)
+    i_w_s_first = numpy.add(i_w_s_first, coefficients[dim][dim])
+    w_s_first = numpy.true_divide(1.0, i_w_s_first)
+    if (w_s_first.shape[0] == 1):
+        return w_s_first[0]
     else:
-        return w_first
+        return w_s_first
 
 def compute_w_first(logger,
                     point,
