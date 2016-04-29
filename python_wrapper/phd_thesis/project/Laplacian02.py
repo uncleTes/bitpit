@@ -380,7 +380,6 @@ class Laplacian(BaseClass2D.BaseClass2D):
                 r_start += octs_f_process[i]
                 r_end += octs_f_process[i + 1]
             new_ranges = (r_start, r_end)
-            
         else:
             # Masked octants
             masked_octs = self._masked_oct_bg_g
@@ -458,7 +457,7 @@ class Laplacian(BaseClass2D.BaseClass2D):
                         b_f_o_n.append(node)
                         b_centers.append(center)
                         b_codim.append(2)
-            
+        
         (b_values, c_neighs) = self.eval_b_c(b_centers,
                                              b_f_o_n  ,
                                              b_codim)
@@ -1856,6 +1855,7 @@ class Laplacian(BaseClass2D.BaseClass2D):
                                                              b_t_dict ,
                                                              logger   ,  
                                                              log_file)[: dimension]
+
                     # Numpy ws'.
                     n_ws_first = utilities.h_c_w_first(dimension   ,
                                                        [t_n_center],
@@ -2012,17 +2012,18 @@ class Laplacian(BaseClass2D.BaseClass2D):
             # New neighbour indices.
             n_n_i = []
             (neigh_centers, 
-            for i, index in enumerate(neigh_indices):
-                if not isinstance(index, basestring):
-                    masked_index = self._ngn[index]
-                    n_n_i.append(masked_index)
-                else:
-                    n_n_i.append(index)
              neigh_indices)  = self.find_right_neighbours(local_idxs[idx],
                                                           o_ranges[0]    ,
                                                           True)
             coeffs = utilities.least_squares(neigh_centers,
                                              t_o_centers[idx])
+            #for i, index in enumerate(neigh_indices):
+            #    if not isinstance(index, basestring):
+            #        masked_index = self._ngn[index]
+            #        n_n_i.append(masked_index)
+            #    else:
+            #        n_n_i.append(index)
+            n_n_i = neigh_indices
             if (mapping):
                 b_codim = int(keys[idx][3])
                 f_o_n = int(keys[idx][2])
