@@ -408,6 +408,35 @@ def check_point_into_squares(point_to_check,
         logger.error("Second parameter must be a list of lists.")
     return check
 
+# https://it.wikipedia.org/wiki/Metodo_dei_minimi_quadrati
+def least_squares(points,
+                  unknown_point):
+    # In 2D we approximate our function as a plane: \"ax + by + c\".
+    n_points = len(points)
+    A = numpy.zeros((n_points, 3))
+
+    for i in xrange(0, n_points):
+        t_point = points[i]
+        if (type(t_point) is list):
+            # Append to the list the coefficient for the \"c\" parameter.
+            t_point.append(1)
+        elif (type(t_point) is tuple):
+            # Adding to the tuple the coefficient for the \"c\" parameter.
+            t_point = t_point + (1,)
+        A[i] = t_point
+
+    At = A.T
+    AtA = numpy.dot(At, A)
+    # Pseudo-inverse matrix.
+    p = numpy.dot(numpy.linalg.inv(AtA), At)
+    # Multiplying \"a\" time \"x\".
+    p[0, :] = p[0, :] * unknown_point[0]
+    # Multiplying \"b\" time \"y\".
+    p[1, :] = p[1, :] * unknown_point[1]
+
+    coeffs = numpy.sum(p, axis = 0)
+    return coeffs
+    
 def bil_coeffs(unknown_point, 
                points_coordinates):
     coeff_01 = ((points_coordinates[3][0] - unknown_point[0]) * 
