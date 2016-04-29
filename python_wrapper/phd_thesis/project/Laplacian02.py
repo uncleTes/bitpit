@@ -1835,17 +1835,12 @@ class Laplacian(BaseClass2D.BaseClass2D):
         # \"idxs[0]\" because is a numpy array, so to select the array we have
         # to use the index notation.
         for idx in idxs[0]:
-            center_cell_container = octree.get_center(local_idxs[idx])
-            center_cell_container = center_cell_container[: dimension]
-            location = utilities.points_location(centers[idx][: dimension], 
-                                                 center_cell_container)
             neigh_centers, neigh_indices = ([] for i in range(0, 2)) 
             (neigh_centers, 
-             neigh_indices)  = self.find_right_neighbours(location       ,
-                                                          local_idxs[idx],
+             neigh_indices)  = self.find_right_neighbours(local_idxs[idx],
                                                           o_ranges[0])
-            bil_coeffs = utilities.bil_coeffs(centers[idx][0 : dimension],
-                                              neigh_centers)
+            coeffs = utilities.least_squares(neigh_centers,
+                                             centers[idx])
 
             if (mapping):
                 # Checkout how the \"stencil\" is created in the function
@@ -1880,20 +1875,20 @@ class Laplacian(BaseClass2D.BaseClass2D):
                         value_to_multiply = (1.0 / h2) * t_m
                     elif (b_codim ==  -1):
                         break
-                    new_bil_coeffs = [coeff * value_to_multiply for coeff in \
-                                                                    bil_coeffs]
+                    new_coeffs = [coeff * value_to_multiply for coeff in \
+                                  coeffs]
                     #self.apply_rest_prol_ops(row_index     ,
                     #                         neigh_indices ,
                     #                         new_bil_coeffs,
                     #                         neigh_centers)
             else:
-                bil_coeffs = [coeff * (1.0 / h2s[idx]) for coeff in bil_coeffs]
+                coeffs = [coeff * (1.0 / h2s[idx]) for coeff in coeffs]
 
                 row_indices = [int(octant) for octant in stencils[idx][3 :: 5]]
 
                 self.apply_rest_prol_ops(row_indices  ,
                                          neigh_indices,
-                                         bil_coeffs   ,
+                                         coeffs       ,
                                          neigh_centers)
         end = time.time()
         print("fg update " + str(end - start))
@@ -2013,27 +2008,21 @@ class Laplacian(BaseClass2D.BaseClass2D):
                 if (dimension == 3):
                     pass
                 
-            center_cell_container = octree.get_center(local_idxs[idx])[: dimension]
-            location = utilities.points_location(t_o_centers[idx],
-                                                 center_cell_container)
             neigh_centers, neigh_indices = ([] for i in range(0, 2)) 
             # New neighbour indices.
             n_n_i = []
             (neigh_centers, 
-             neigh_indices)  = self.find_right_neighbours(location         ,
-                                                          local_idxs[idx]  ,
-                                                          o_ranges[0]      ,
-                                                          True             ,
-                                                          int(keys[idx][2]),
-                                                          int(keys[idx][3]))
-            bil_coeffs = utilities.bil_coeffs(t_o_centers[idx],
-                                              neigh_centers)
             for i, index in enumerate(neigh_indices):
                 if not isinstance(index, basestring):
                     masked_index = self._ngn[index]
                     n_n_i.append(masked_index)
                 else:
                     n_n_i.append(index)
+             neigh_indices)  = self.find_right_neighbours(local_idxs[idx],
+                                                          o_ranges[0]    ,
+                                                          True)
+            coeffs = utilities.least_squares(neigh_centers,
+                                             t_o_centers[idx])
             if (mapping):
                 b_codim = int(keys[idx][3])
                 f_o_n = int(keys[idx][2])
@@ -2049,12 +2038,12 @@ class Laplacian(BaseClass2D.BaseClass2D):
                     t_m = (t_m * 0.5) if ((f_o_n == 0) or (f_o_n == 3)) \
                                       else (t_m * (-0.5))
                     value_to_multiply = (1.0 / h2) * t_m
-                bil_coeffs = [coeff * value_to_multiply for coeff in bil_coeffs]
+                coeffs = [coeff * value_to_multiply for coeff in coeffs]
             else:
-                bil_coeffs = [coeff * (1.0 / h2s[idx]) for coeff in bil_coeffs]
+                coeffs = [coeff * (1.0 / h2s[idx]) for coeff in coeffs]
             self.apply_rest_prol_ops(int(keys[idx][1]),
                                      n_n_i            ,
-                                     bil_coeffs       ,
+                                     coeffs           ,
                                      neigh_centers)
         end = time.time()
         print("bg update " + str(end - start))
