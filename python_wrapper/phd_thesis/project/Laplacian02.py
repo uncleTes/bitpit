@@ -1921,7 +1921,7 @@ class Laplacian(BaseClass2D.BaseClass2D):
         mapping = self._mapping
         proc_grid = self._proc_g
         if (mapping):
-            c_t_adj_dict = self.get_trans(proc_grid)
+            c_t_adj_dict = self.get_trans_adj(proc_grid)
 
         start = time.time()
         list_edg = list(self._n_edg)
