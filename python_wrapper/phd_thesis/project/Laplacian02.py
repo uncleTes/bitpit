@@ -430,16 +430,20 @@ class Laplacian(BaseClass2D.BaseClass2D):
         c_neighs = self.neighbour_centers(centers       ,
                                           edges_or_nodes,
                                           f_o_n)
+        # Border's points.
+        b_points = self.border_points(centers       ,
+                                      edges_or_nodes,
+                                      f_o_n)
         # \"c_neighs\" is only a tuple, not a list.
-        if not isinstance(c_neighs, list):
+        if not isinstance(b_points, list):
             just_one_neighbour = True
-            c_neigh = c_neighs
-            c_neighs = []
-            c_neighs.append(c_neigh)
-        x_s = [c_neigh[0] for c_neigh in c_neighs] 
-        y_s = [c_neigh[1] for c_neigh in c_neighs]
+            b_point = b_points
+            b_points = []
+            b_points.append(b_point)
+        x_s = [b_point[0] for b_point in b_points] 
+        y_s = [b_point[1] for b_point in b_points]
         if (dimension == 3):
-            z_s = [c_neigh[2] for c_neigh in c_neighs]
+            z_s = [b_point[2] for b_point in b_points]
         else:
             z_s = None
         
@@ -455,7 +459,7 @@ class Laplacian(BaseClass2D.BaseClass2D):
         self.log_msg(msg   ,
                      "info")
 
-        return (boundary_values, c_neighs)
+        return (boundary_values, c_neighs, b_points)
     # --------------------------------------------------------------------------
     
     # --------------------------------------------------------------------------
