@@ -573,9 +573,9 @@ class Laplacian(BaseClass2D.BaseClass2D):
                         b_centers.append(center)
                         b_codim.append(2)
         
-        (b_values, c_neighs) = self.eval_b_c(b_centers,
-                                             b_f_o_n  ,
-                                             b_codim)
+        (b_values, c_neighs, b_points) = self.eval_b_c(b_centers,
+                                                       b_f_o_n  ,
+                                                       b_codim)
         if (mapping):
             prev_b_center = None
             prev_t_b_center = None
@@ -641,6 +641,7 @@ class Laplacian(BaseClass2D.BaseClass2D):
                     #       \"b_centers[i]\"? Think about it.
                     t_value = tuple(center[: dimension])
                     t_value = t_value + tuple(b_centers[i][: dimension])
+                    t_value = t_value + tuple(b_points[i][: dimension])
                     n_mask = 43 - len(t_value)
                     stencil = (t_value + ((-1,) * (n_mask))\
                                if (self._p_inter) else t_value)
@@ -696,13 +697,35 @@ class Laplacian(BaseClass2D.BaseClass2D):
                 if (dimension == 3):
                     pass
                 t_m = (-1.0 / h2) * (w_first2 * t_m)
+                if (codim == 1):
+                    b_values[i] = b_values[i] * 2.0
+                else:
+                    b_values[i] = b_values[i] * 4.0
+                    t_value01 = ExactSolution2D.ExactSolution2D.solution(b_points[i][0] , 
+                                                   		         b_centers[i][1],
+                                                                         None           ,
+                                                                         c_t_dict       ,
+                                                                         mapping)
+                    t_value02 = ExactSolution2D.ExactSolution2D.solution(b_centers[i][0], 
+                                                   		         b_points[i][1] ,
+                                                                         None           ,
+                                                                         c_t_dict       ,
+                                                                         mapping)
+                    b_values[i] = b_values[i] - (2.0 * t_value01) - (2.0 * t_value02)
                 b_values[i] = b_values[i] * t_m
+                insert_mode = PETSc.InsertMode.ADD_VALUES
+                self._b_mat.setValues(b_indices[i], # Row
+                                      b_indices[i], # Column
+                                      1.0         , # Value to be inserted
+                                      insert_mode)  # How to insert the value
                 # The three following lines are just syntactic sugar to express
                 # some python's capabilities. But the previous one line is just
                 # faster. Tested personally on a list of 10000.
                 #t_ms[i] = t_m
             #b_values = map(lambda pair : (pair[0] * pair[1]), 
             #               zip(b_values, t_ms))
+            self.assembly_petsc_struct("matrix",
+                                       PETSc.Mat.AssemblyType.FLUSH_ASSEMBLY)
         else:
             b_values[:] = [b_value * (-1.0 / h2) for b_value in b_values]
    
