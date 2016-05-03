@@ -156,6 +156,121 @@ class Laplacian(BaseClass2D.BaseClass2D):
     # --------------------------------------------------------------------------
     
     # --------------------------------------------------------------------------
+    # Returns the boundary points.
+    # TODO: modify this function to be used in 3D case.
+    def border_points(self   ,
+                      # Centers.
+                      cs     ,
+                      # Edges or nodes.
+                      es_o_ns,
+                      # Values.
+                      vs):
+        """Function which returns the border's points, depending on 
+           for which face we are interested into.
+           
+           Arguments:
+               cs (tuple or list of tuple) : coordinates of the centers of 
+                                             the current octree.
+               es_o_ns (int between 1 and 2 or list) : numbers indicating if the 
+                                                       neighbour is from edge or 
+                                                       node.
+               vs (int between 0 and 3 or list) : faces for which we are 
+                                                  interested into knowing the 
+                                                  neighbour's center.
+                                            
+           Returns:
+               a tuple or a list containing the centers evaluated."""
+
+        h = self._h
+        h = h / 2.0
+        centers = cs
+        values = vs
+        edges_or_nodes = es_o_ns        
+        # Checking if passed arguments are lists or not. If not, we have to do
+        # something.
+        try:
+            len(centers)
+            len(values)
+            len(edges_or_nodes)
+        # \"TypeError: object of type 'int' has no len()\", so are no lists but
+        # single elements.
+        except TypeError:
+            t_center, t_value, t_e_o_n = centers, values, edges_or_nodes
+            centers, values, edges_or_nodes = ([] for i in range(0, 3))
+            centers.append(t_center)
+            values.append(t_value)
+            edges_or_nodes.append(t_e_o_n)
+
+        if ((len(values) != 1) and # TODO: Check if this first check is useless.
+            (len(values) != len(centers))):
+            msg = "\"MPI Abort\" called " 
+            extra_msg = " Different length of \"edges\" (or \"nodes\") and " +\
+                        "\"centers\"."
+            self.log_msg(msg    ,
+                         "error",
+                         extra_msg)
+            self._comm_w.Abort(1)
+
+	# Evaluated points.
+        eval_points = []
+        # Face or node.
+        for i, value in enumerate(values):
+            (x_center, y_center) = centers[i]
+            if not isinstance(value, numbers.Integral):
+                value = int(math.ceil(e_o_n))
+            try:
+                # Python's comparison chaining idiom.
+                assert 0 <= value <= 3
+            except AssertionError:
+                msg = "\"MPI Abort\" called " 
+                extra_msg = " Faces numeration incorrect."
+                self.log_msg(msg    ,
+                             "error",
+                             extra_msg)
+                self._comm_w.Abort(1)
+            # If no exception is raised, go far...
+            else:
+                edge = False
+                node = False
+                if edges_or_nodes[i] == 1:
+                    edge = True
+                elif edges_or_nodes[i] == 2:
+                    node = True
+                if ((value % 2) == 0):
+		    if (value == 0):
+                    	x_center -= h
+                        if node:
+                            y_center -= h
+		    else:
+                        if edge:
+                    	    y_center -= h
+                        if node:
+                            x_center -= h
+                            y_center += h
+                else:
+		    if (value == 1):
+                    	x_center += h
+                        if node:
+                            y_center -= h
+		    else:
+                    	y_center += h
+                        if node:
+                            x_center += h
+                            
+                eval_points.append((x_center, y_center))
+
+        msg = "Evaluated points on the border"
+        if len(centers) == 1:
+            msg = "Evaluated point of the border"
+            eval_centers = eval_centers[0]
+                
+        self.log_msg(msg   ,
+                     "info")
+
+        return eval_points
+    # --------------------------------------------------------------------------
+    
+    # --------------------------------------------------------------------------
     # Returns the center of the face neighbour.
     # TODO: modify this function to be used in 3D case.
     def neighbour_centers(self   ,
