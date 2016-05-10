@@ -329,11 +329,14 @@ def set_octree(comm_l,
     an = anchors[proc_grid]
     # Edge's length for PABLO.
     ed = edges[proc_grid]
+    h = ed / (2.0**refinement_levels)
+    if proc_grid == 0:
+        h = 0.0
     pablo_log_file = "./log/" + comm_name + ".log"
-    pablo = my_pablo_uniform.Py_My_Pablo_Uniform(an[0]         ,
-                                                 an[1]         ,
+    pablo = my_pablo_uniform.Py_My_Pablo_Uniform(an[0]+h         ,
+                                                 an[1]+h         ,
                                                  an[2]         ,
-                                                 ed            ,
+                                                 ed-(2.0*h)            ,
                                                  dimension     , # Dim
                                                  20            , # Max level
                                                  pablo_log_file, # Logfile
@@ -398,6 +401,7 @@ def compute(comm_dictionary     ,
         t_coeffs_adj = trans_adj_dictionary[proc_grid]
         laplacian.init_trans_dict(trans_dictionary)
         laplacian.init_trans_adj_dict(trans_adj_dictionary)
+        laplacian.temp_funct()
     (d_nnz, o_nnz) = laplacian.create_mask(o_n_oct = 0)
     laplacian.init_sol()
 

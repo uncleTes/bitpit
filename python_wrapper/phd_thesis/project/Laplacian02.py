@@ -151,9 +151,48 @@ class Laplacian(BaseClass2D.BaseClass2D):
                     self._t_background = t_t_points
                 else:
                     self._t_foregrounds.append(t_t_points)
-            # Initializing exchanged structures.
+        # Initializing exchanged structures.
         self.init_e_structures()
     # --------------------------------------------------------------------------
+
+    def temp_funct(self):
+	log_file = self.logger.handlers[0].baseFilename
+        logger = self.logger
+        h_t = 0.25 / numpy.sqrt(self._N_oct)
+        c_t_dict = self.get_trans(1)
+        n01 = [0.25 + h_t, 0.25 + h_t]
+        n02 = [0.5 - h_t, 0.25 + h_t]
+        n03 = [0.5 - h_t, 0.5  - h_t]
+        n04 = [0.25 + h_t, 0.5 - h_t]
+        t_n01 =  utilities.apply_persp_trans(2, 
+                                             n01, 
+                                             c_t_dict ,
+                                             logger   ,  
+                                             log_file)[: 2]
+        t_n02 =  utilities.apply_persp_trans(2, 
+                                             n02, 
+                                             c_t_dict ,
+                                             logger   ,  
+                                             log_file)[: 2]
+        t_n03 =  utilities.apply_persp_trans(2, 
+                                             n03, 
+                                             c_t_dict ,
+                                             logger   ,  
+                                             log_file)[: 2]
+        t_n04 =  utilities.apply_persp_trans(2, 
+                                             n04, 
+                                             c_t_dict ,
+                                             logger   ,  
+                                             log_file)[: 2]
+        #print(self._t_foregrounds)
+        self._t_foregrounds = []
+        t_list = []
+        t_list.append(t_n01)
+        t_list.append(t_n02)
+        t_list.append(t_n03)
+        t_list.append(t_n04)
+        self._t_foregrounds.append(t_list)
+        #print(self._t_foregrounds)
     
     # --------------------------------------------------------------------------
     # Returns the center of the face neighbour.
