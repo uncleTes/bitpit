@@ -527,6 +527,11 @@ class Laplacian(BaseClass2D.BaseClass2D):
         # TODO: is this conversion necessary?
         # Converting from numpy array to python list.
 	b_values = b_values.tolist()
+
+        if grid == 0:
+            for i,v in enumerate(b_values):
+                b_values[i] = 0.0
+
         # Grids not of the background: equal to number >= 1.
         if grid:
             for i, center in enumerate(c_neighs):
@@ -1337,6 +1342,13 @@ class Laplacian(BaseClass2D.BaseClass2D):
                                               else (t_m * (-0.5))
                             value_to_append = (1.0 / h2) * t_m
                             values.append(value_to_append)
+
+                if is_background:
+                    for i,v in enumerate(values):
+                        if i == 0:
+                            values[i] = 1.0
+                        else:
+                            values[i] = 0.0
                 
                 self._b_mat.setValues(m_g_octant, # Row
                                       indices   , # Columns
@@ -1904,10 +1916,10 @@ class Laplacian(BaseClass2D.BaseClass2D):
                         break
                     new_coeffs = [coeff * value_to_multiply for coeff in \
                                   coeffs]
-                    self.apply_rest_prol_ops(row_index     ,
-                                             neigh_indices ,
-                                             new_coeffs,
-                                             neigh_centers)
+                    #self.apply_rest_prol_ops(row_index     ,
+                    #                         neigh_indices ,
+                    #                         new_coeffs,
+                    #                         neigh_centers)
             else:
                 coeffs = [coeff * (1.0 / h2s[idx]) for coeff in coeffs]
 
