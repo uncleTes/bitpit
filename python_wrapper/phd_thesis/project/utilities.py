@@ -579,6 +579,7 @@ def p_t_coeffs_adj(dim       ,
     # Adjoint matrix
     ad_matrix = None
     A = p_t_coeffs
+    A_det = numpy.linalg.det(A)
     logger = check_null_logger(logger, log_file)
     
     try:
@@ -640,6 +641,7 @@ def p_t_coeffs_adj(dim       ,
         msg_err = sys.exc_info()[1] 
         logger.error(msg_err)
     finally:
+        ad_matrix = numpy.true_divide(ad_matrix, A_det)
         return ad_matrix
 
 # Homogeneous coordinate w'.
