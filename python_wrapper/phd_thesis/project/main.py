@@ -397,6 +397,7 @@ def compute(comm_dictionary     ,
                                                                  dimension,
                                                                  logger   ,
                                                                  log_file)
+        #print(trans_adj_dictionary)
         t_coeffs = trans_dictionary[proc_grid]
         t_coeffs_adj = trans_adj_dictionary[proc_grid]
         laplacian.init_trans_dict(trans_dictionary)
