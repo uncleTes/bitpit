@@ -578,7 +578,7 @@ class Laplacian(BaseClass2D.BaseClass2D):
                     # \"0.0\", because the boundary value is given by the 
                     # coefficients of the bilinear operator in the \"extension\"
                     # matrix.
-                    #b_values[i] = 0.0
+                    b_values[i] = 0.0
         if (mapping):
             # Current transformation adjoint matrix's dictionary.
             c_t_adj_dict = self.get_trans_adj(grid) 
@@ -1816,12 +1816,12 @@ class Laplacian(BaseClass2D.BaseClass2D):
         for i, mpi_request in enumerate(mpi_requests):
             status = MPI.Status()
             mpi_request.Wait(status)
-        #if not is_background:
-        #    self.update_fg_grids(o_ranges,
-        #                         ids_octree_contained)
-        #else:
-        #    self.update_bg_grids(o_ranges,
-        #                         ids_octree_contained)
+        if not is_background:
+            self.update_fg_grids(o_ranges,
+                                 ids_octree_contained)
+        else:
+            self.update_bg_grids(o_ranges,
+                                 ids_octree_contained)
         
         self.assembly_petsc_struct("matrix",
                                    PETSc.Mat.AssemblyType.FINAL_ASSEMBLY)
@@ -1935,8 +1935,9 @@ class Laplacian(BaseClass2D.BaseClass2D):
             (neigh_centers, 
              neigh_indices)  = self.find_right_neighbours(local_idxs[idx],
                                                           o_ranges[0])
-            coeffs = utilities.least_squares(neigh_centers,
-                                             centers[idx])
+            #coeffs = utilities.least_squares(neigh_centers,
+            #                                 centers[idx])
+            coeffs = [1.0]
 
             if (mapping):
                 # Checkout how the \"stencil\" is created in the function
@@ -1974,10 +1975,10 @@ class Laplacian(BaseClass2D.BaseClass2D):
                         break
                     new_coeffs = [coeff * value_to_multiply for coeff in \
                                   coeffs]
-                    self.apply_rest_prol_ops(row_index     ,
-                                             neigh_indices ,
-                                             new_coeffs,
-                                             neigh_centers)
+                    #self.apply_rest_prol_ops(row_index     ,
+                    #                         neigh_indices ,
+                    #                         new_coeffs,
+                    #                         neigh_centers)
             else:
                 coeffs = [coeff * (1.0 / h2s[idx]) for coeff in coeffs]
 
@@ -2089,6 +2090,11 @@ class Laplacian(BaseClass2D.BaseClass2D):
                                                    f_t_adj_dict,
                                                    logger      ,
                                                    log_file)
+                i_metric_coefficients = utilities.metric_coefficients(dimension,
+                                                                      [t_i_center],
+                                                                      f_t_adj_dict,
+                                                                      logger,
+                                                                      log_file)
                 # \"adj_matrix[0][0]\"...
                 A00 = f_t_adj_dict[0][0]
                 # ...and so on.
@@ -2112,8 +2118,9 @@ class Laplacian(BaseClass2D.BaseClass2D):
              neigh_indices)  = self.find_right_neighbours(local_idxs[idx],
                                                           o_ranges[0]    ,
                                                           True)
-            coeffs = utilities.least_squares(neigh_centers,
-                                             t_o_centers[idx])
+            #coeffs = utilities.least_squares(neigh_centers,
+            #                                 t_o_centers[idx])
+            coeffs = [1.0]
             #for i, index in enumerate(neigh_indices):
             #    if not isinstance(index, basestring):
             #        masked_index = self._ngn[index]
@@ -2125,10 +2132,33 @@ class Laplacian(BaseClass2D.BaseClass2D):
                 b_codim = int(keys[idx][3])
                 f_o_n = int(keys[idx][2])
                 h2 = h2s[idx]
+                h = numpy.sqrt(h2)
                 w_first2 = n_ws_first * n_ws_first
+                w_first = 1.0
+                w_first2 = w_first * w_first
+                A00 = i_metric_coefficients[0] 
+                A10 = i_metric_coefficients[1]
+                A01 = i_metric_coefficients[2]
+                A11 = i_metric_coefficients[3]
+                ds2_epsilon_x = i_metric_coefficients[4]
+                ds2_epsilon_y = i_metric_coefficients[5]
+                ds2_nu_x = i_metric_coefficients[6]
+                ds2_nu_y = i_metric_coefficients[7]
+                A002 = numpy.square(A00)
+                A102 = numpy.square(A10)
+                A012 = numpy.square(A01)
+                A112 = numpy.square(A11)
                 if (b_codim == 1):
                     t_m = (A002 + A102) if ((f_o_n == 0) or (f_o_n == 1)) \
                                         else (A012 + A112)
+                    if (f_o_n == 0):
+                        t_m = t_m - (0.5*h*(ds2_epsilon_x + ds2_epsilon_y))
+                    elif (f_o_n == 1):   
+                        t_m = t_m + (0.5*h*(ds2_epsilon_x + ds2_epsilon_y))
+                    elif (f_o_n == 2):
+                        t_m = t_m - (0.5*h*(ds2_nu_x + ds2_nu_y))
+                    elif (f_o_n == 3):
+                        t_m = t_m + (0.5*h*(ds2_nu_x + ds2_nu_y))
                     t_m = (1.0 * w_first2) * t_m
                     value_to_multiply = t_m / h2
                 else:
@@ -2203,95 +2233,95 @@ class Laplacian(BaseClass2D.BaseClass2D):
         #    m_index = index + start_octant
         indices.append(m_index)
 
-        neighs, ghosts = ([] for i in range(0, 2))
-        for i in xrange(0, nfaces + nnodes):
-            # Codimension.
-            codim = 1 if (i <= 3) else 2
-            # Index of current face or node.
-            face_node = i if (i <= 3) else (i - 4)
-            
-            (neighs, 
-             ghosts) = self._octree.find_neighbours(current_octant,
-                                                    face_node     ,
-                                                    codim         ,
-                                                    neighs        ,
-                                                    ghosts)
-            #if (not is_background):
-            #    print("current octant " + str(current_octant) + " codim = " + str(codim) + " face_node = " + str(face_node) + " : " + str(neighs))
-            # Check if it is really a neighbour of edge or node. If not,
-            # it means that we are near the boundary if we are on the
-            # background, in an outside area if we are on the foreground, 
-            # and so...
-            if len(neighs) is not 0:
-                # Neighbour is into the same process, so is local.
-                if not ghosts[0]:
-                    index = neighs[0]
-                    m_index = self.mask_octant(index + start_octant)
-                    #if is_background:
-                    #    m_index = index + start_octant
-                    # Node not covered.
-                    if (m_index != -1):
-                        cell_center = self._octree.get_center(neighs[0])[: dimension]
-                        centers.append(cell_center)
-                        indices.append(m_index)
-                else:
-                    # In this case, the quas(/oc)tree is no more local
-                    # into the current process, so we have to find it
-                    # globally.
-                    index = self._octree.get_ghost_global_idx(neighs[0])
-                    # \".index\" give us the index of 
-                    # \"self._global_ghosts\" that contains the index
-                    # of the global ghost quad(/oc)tree previously
-                    # found and stored in \"index\".
-                    py_ghost_oct = self._octree.get_ghost_octant(neighs[0])
-                    m_index = self.mask_octant(index + g_d)
-                    #if is_background:
-                    #    m_index = index
-                    # Node not covered.
-                    if (m_index != -1):
-                        cell_center = self._octree.get_center(py_ghost_oct, 
-                                                              True)[: dimension]
-                        centers.append(cell_center)
-                        indices.append(m_index)
-            # ...we need to evaluate boundary values (background) or not to 
-            # consider the indeces and centers found (foreground).
-            else:
-                to_consider = True
-                center = self._octree.get_center(current_octant)[: dimension]
-                #if (not is_background):
-                #    print(center)
-                border_center = self.neighbour_centers(center,
-                                                       codim ,
-                                                       face_node)
-                #if (not is_background):
-                #    print(border_center)
+        #neighs, ghosts = ([] for i in range(0, 2))
+        #for i in xrange(0, nfaces + nnodes):
+        #    # Codimension.
+        #    codim = 1 if (i <= 3) else 2
+        #    # Index of current face or node.
+        #    face_node = i if (i <= 3) else (i - 4)
+        #    
+        #    (neighs, 
+        #     ghosts) = self._octree.find_neighbours(current_octant,
+        #                                            face_node     ,
+        #                                            codim         ,
+        #                                            neighs        ,
+        #                                            ghosts)
+        #    #if (not is_background):
+        #    #    print("current octant " + str(current_octant) + " codim = " + str(codim) + " face_node = " + str(face_node) + " : " + str(neighs))
+        #    # Check if it is really a neighbour of edge or node. If not,
+        #    # it means that we are near the boundary if we are on the
+        #    # background, in an outside area if we are on the foreground, 
+        #    # and so...
+        #    if len(neighs) is not 0:
+        #        # Neighbour is into the same process, so is local.
+        #        if not ghosts[0]:
+        #            index = neighs[0]
+        #            m_index = self.mask_octant(index + start_octant)
+        #            #if is_background:
+        #            #    m_index = index + start_octant
+        #            # Node not covered.
+        #            if (m_index != -1):
+        #                cell_center = self._octree.get_center(neighs[0])[: dimension]
+        #                centers.append(cell_center)
+        #                indices.append(m_index)
+        #        else:
+        #            # In this case, the quas(/oc)tree is no more local
+        #            # into the current process, so we have to find it
+        #            # globally.
+        #            index = self._octree.get_ghost_global_idx(neighs[0])
+        #            # \".index\" give us the index of 
+        #            # \"self._global_ghosts\" that contains the index
+        #            # of the global ghost quad(/oc)tree previously
+        #            # found and stored in \"index\".
+        #            py_ghost_oct = self._octree.get_ghost_octant(neighs[0])
+        #            m_index = self.mask_octant(index + g_d)
+        #            #if is_background:
+        #            #    m_index = index
+        #            # Node not covered.
+        #            if (m_index != -1):
+        #                cell_center = self._octree.get_center(py_ghost_oct, 
+        #                                                      True)[: dimension]
+        #                centers.append(cell_center)
+        #                indices.append(m_index)
+        #    # ...we need to evaluate boundary values (background) or not to 
+        #    # consider the indeces and centers found (foreground).
+        #    else:
+        #        to_consider = True
+        #        center = self._octree.get_center(current_octant)[: dimension]
+        #        #if (not is_background):
+        #        #    print(center)
+        #        border_center = self.neighbour_centers(center,
+        #                                               codim ,
+        #                                               face_node)
+        #        #if (not is_background):
+        #        #    print(border_center)
 
-                if (not is_background):
-                    if (mapping):
-                        threshold = 0.0
-                        t_center =  utilities.apply_persp_trans(dimension    , 
-                                                                border_center, 
-                                                                c_t_dict     ,
-                                                                logger       ,  
-                                                                log_file)[: dimension]
-                        check = utilities.is_point_inside_polygon(t_center    ,
-                                                                  t_background,
-                                                                  logger      ,
-                                                                  log_file    ,
-                                                                  threshold)
-                    else:
-                        check = utilities.check_oct_into_square(border_center,
-                                                    	        b_bound      ,
-                                                                h            ,
-                                                                0.0          ,
-                                                  	        self.logger  ,
-                                                  	        log_file)
-                    if (check):
-                        to_consider = False
-                    
-                if (to_consider):
-                    centers.append(border_center)
-                    indices.append("outside_bg")
+        #        if (not is_background):
+        #            if (mapping):
+        #                threshold = 0.0
+        #                t_center =  utilities.apply_persp_trans(dimension    , 
+        #                                                        border_center, 
+        #                                                        c_t_dict     ,
+        #                                                        logger       ,  
+        #                                                        log_file)[: dimension]
+        #                check = utilities.is_point_inside_polygon(t_center    ,
+        #                                                          t_background,
+        #                                                          logger      ,
+        #                                                          log_file    ,
+        #                                                          threshold)
+        #            else:
+        #                check = utilities.check_oct_into_square(border_center,
+        #                                            	        b_bound      ,
+        #                                                        h            ,
+        #                                                        0.0          ,
+        #                                          	        self.logger  ,
+        #                                          	        log_file)
+        #            if (check):
+        #                to_consider = False
+        #            
+        #        if (to_consider):
+        #            centers.append(border_center)
+        #            indices.append("outside_bg")
 
         return (centers, indices)
     # --------------------------------------------------------------------------
