@@ -528,7 +528,7 @@ class Laplacian(BaseClass2D.BaseClass2D):
         # Converting from numpy array to python list.
 	b_values = b_values.tolist()
 
-        if grid == 0:
+        if grid == 1:
             for i,v in enumerate(b_values):
                 b_values[i] = 0.0
 
@@ -1401,7 +1401,7 @@ class Laplacian(BaseClass2D.BaseClass2D):
                             value_to_append = (1.0 / h2) * t_m
                             values.append(value_to_append)
 
-                if is_background:
+                if not is_background:
                     for i,v in enumerate(values):
                         if i == 0:
                             values[i] = 1.0
@@ -1904,6 +1904,7 @@ class Laplacian(BaseClass2D.BaseClass2D):
                                                              b_t_dict ,
                                                              logger   ,  
                                                              log_file)[: dimension]
+                    t_centers[i] = centers[i]
                     c_t_adj_dict = self.get_trans_adj(proc_grid)
                     centers[i] = utilities.apply_persp_trans_inv(dimension   ,
                                                                  centers[i]  ,
@@ -1945,6 +1946,16 @@ class Laplacian(BaseClass2D.BaseClass2D):
                 for i in xrange(6, len(stencils[idx]), 5):
                     b_codim = int(stencils[idx][i])
                     f_o_n = int(stencils[idx][i + 1])
+                    x_s = t_centers[idx][0]
+                    y_s = t_centers[idx][1]
+                    #coeffs = []
+                    #coeff = ExactSolution2D.ExactSolution2D.solution(x_s , 
+                    #                               		     y_s ,
+                    #                                                 None,
+                    #                                                 None,
+                    #                                                 False)
+                    #coeffs.append(coeff)
+
                     row_index = int(stencils[idx][i - 3])
                     h2 = h2s[idx]
                     n_center = [stencils[idx][i - 2], stencils[idx][i - 1]]
@@ -1960,10 +1971,42 @@ class Laplacian(BaseClass2D.BaseClass2D):
                                                        b_t_adj_dict,
                                                        logger      ,
                                                        log_file)
+                    i_metric_coefficients = utilities.metric_coefficients(dimension,
+                                                                          [t_n_center],
+                                                                          b_t_adj_dict,
+                                                                          logger,
+                                                                          log_file)
                     w_first2 = n_ws_first * n_ws_first
+                    w_first = 1.0
+                    w_first2 = w_first * w_first
+                    h = numpy.sqrt(h2)
+                    A00 = i_metric_coefficients[0] 
+                    A10 = i_metric_coefficients[1]
+                    A01 = i_metric_coefficients[2]
+                    A11 = i_metric_coefficients[3]
+                    ds2_epsilon_x = i_metric_coefficients[4]
+                    ds2_epsilon_y = i_metric_coefficients[5]
+                    ds2_nu_x = i_metric_coefficients[6]
+                    ds2_nu_y = i_metric_coefficients[7]
+                    A002 = numpy.square(A00)
+                    A102 = numpy.square(A10)
+                    A012 = numpy.square(A01)
+                    A112 = numpy.square(A11)
                     if (b_codim == 1):
                         t_m = (A002 + A102) if ((f_o_n == 0) or (f_o_n == 1)) \
                                             else (A012 + A112)
+                        # IMPORTANT
+                        # Note that here the signs MUST be opposite respect to the same part
+                        # into "set_b_c" and "update_bg_grids" functions, because they have to
+                        # be considered as stencil of the neighbours, and so with opposite face.
+                        if (f_o_n == 0):
+                            t_m = t_m + (0.5*h*(ds2_epsilon_x + ds2_epsilon_y))
+                        elif (f_o_n == 1):   
+                            t_m = t_m - (0.5*h*(ds2_epsilon_x + ds2_epsilon_y))
+                        elif (f_o_n == 2):
+                            t_m = t_m + (0.5*h*(ds2_nu_x + ds2_nu_y))
+                        elif (f_o_n == 3):
+                            t_m = t_m - (0.5*h*(ds2_nu_x + ds2_nu_y))
                         t_m = (1.0 * w_first2) * t_m
                         value_to_multiply = t_m / h2
                     elif (b_codim == 2):
@@ -1973,12 +2016,18 @@ class Laplacian(BaseClass2D.BaseClass2D):
                         value_to_multiply = (1.0 / h2) * t_m
                     elif (b_codim ==  -1):
                         break
+                    #new_coeffs = [(-1.0 * coeff) * value_to_multiply for coeff in \
+                    #              coeffs]
                     new_coeffs = [coeff * value_to_multiply for coeff in \
                                   coeffs]
-                    #self.apply_rest_prol_ops(row_index     ,
-                    #                         neigh_indices ,
-                    #                         new_coeffs,
-                    #                         neigh_centers)
+                    #insert_mode = PETSc.InsertMode.ADD_VALUES
+                    #self._rhs.setValues(row_index,
+                    #                    new_coeffs,
+                    #                    insert_mode)
+                    self.apply_rest_prol_ops(row_index     ,
+                                             neigh_indices ,
+                                             new_coeffs,
+                                             neigh_centers)
             else:
                 coeffs = [coeff * (1.0 / h2s[idx]) for coeff in coeffs]
 
@@ -2074,6 +2123,7 @@ class Laplacian(BaseClass2D.BaseClass2D):
                                               ids_octree_contained[0]),
                                              (global_idxs <= 
                                               ids_octree_contained[1])))
+        print(str(self._comm_w.Get_rank()) + " " + str(len(idxs[0])))
         for idx in idxs[0]:
             if (mapping):
                 # Foreground transformation matrix adjoint's dictionary.
@@ -2169,10 +2219,10 @@ class Laplacian(BaseClass2D.BaseClass2D):
                 coeffs = [coeff * value_to_multiply for coeff in coeffs]
             else:
                 coeffs = [coeff * (1.0 / h2s[idx]) for coeff in coeffs]
-            self.apply_rest_prol_ops(int(keys[idx][1]),
-                                     n_n_i            ,
-                                     coeffs           ,
-                                     neigh_centers)
+            #self.apply_rest_prol_ops(int(keys[idx][1]),
+            #                         n_n_i            ,
+            #                         coeffs           ,
+            #                         neigh_centers)
         end = time.time()
         print("bg update " + str(end - start))
 

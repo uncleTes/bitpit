@@ -400,6 +400,7 @@ def compute(comm_dictionary     ,
                                                                  log_file)
         #print(trans_adj_dictionary)
         #print(trans_adj_dictionary)
+        #print(trans_adj_dictionary)
         t_coeffs = trans_dictionary[proc_grid]
         t_coeffs_adj = trans_adj_dictionary[proc_grid]
         laplacian.init_trans_dict(trans_dictionary)
@@ -436,7 +437,7 @@ def compute(comm_dictionary     ,
     exact_solution.e_s_der(n_p_centers[:, 0], 
                            n_p_centers[:, 1],
                            n_p_centers[:, 2] if (dimension == 3) else None)
-    if proc_grid == 0:
+    if proc_grid == 1:
         laplacian.init_rhs(exact_solution.sol)
     else:
         laplacian.init_rhs(exact_solution.s_der)
