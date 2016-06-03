@@ -528,9 +528,9 @@ class Laplacian(BaseClass2D.BaseClass2D):
         # Converting from numpy array to python list.
 	b_values = b_values.tolist()
 
-        if grid == 1:
-            for i,v in enumerate(b_values):
-                b_values[i] = 0.0
+        #if grid == 1:
+        #    for i,v in enumerate(b_values):
+        #        b_values[i] = 0.0
 
         # Grids not of the background: equal to number >= 1.
         if grid:
@@ -1401,12 +1401,12 @@ class Laplacian(BaseClass2D.BaseClass2D):
                             value_to_append = (1.0 / h2) * t_m
                             values.append(value_to_append)
 
-                if not is_background:
-                    for i,v in enumerate(values):
-                        if i == 0:
-                            values[i] = 1.0
-                        else:
-                            values[i] = 0.0
+                #if not is_background:
+                #    for i,v in enumerate(values):
+                #        if i == 0:
+                #            values[i] = 1.0
+                #        else:
+                #            values[i] = 0.0
                 
                 self._b_mat.setValues(m_g_octant, # Row
                                       indices   , # Columns
@@ -2219,10 +2219,10 @@ class Laplacian(BaseClass2D.BaseClass2D):
                 coeffs = [coeff * value_to_multiply for coeff in coeffs]
             else:
                 coeffs = [coeff * (1.0 / h2s[idx]) for coeff in coeffs]
-            #self.apply_rest_prol_ops(int(keys[idx][1]),
-            #                         n_n_i            ,
-            #                         coeffs           ,
-            #                         neigh_centers)
+            self.apply_rest_prol_ops(int(keys[idx][1]),
+                                     n_n_i            ,
+                                     coeffs           ,
+                                     neigh_centers)
         end = time.time()
         print("bg update " + str(end - start))
 

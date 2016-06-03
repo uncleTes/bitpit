@@ -437,10 +437,11 @@ def compute(comm_dictionary     ,
     exact_solution.e_s_der(n_p_centers[:, 0], 
                            n_p_centers[:, 1],
                            n_p_centers[:, 2] if (dimension == 3) else None)
-    if proc_grid == 1:
-        laplacian.init_rhs(exact_solution.sol)
-    else:
-        laplacian.init_rhs(exact_solution.s_der)
+    #if proc_grid == 1:
+    #    laplacian.init_rhs(exact_solution.sol)
+    #else:
+    #    laplacian.init_rhs(exact_solution.s_der)
+    laplacian.init_rhs(exact_solution.s_der)
     laplacian.set_b_c()
     laplacian.update_values(intercomm_dictionary)
     laplacian.solve()
