@@ -1,22 +1,21 @@
 # set tabstop=8 softtabstop=0 expandtab shiftwidth=4 smarttab
 # ------------------------------------IMPORT------------------------------------
-import utilities
-import my_class_vtk
-import sys
-# https://pythonhosted.org/petsc4py/apiref/petsc4py-module.html
-import petsc4py
-petsc4py.init(sys.argv)
-from petsc4py import PETSc
-from mpi4py import MPI
-import numpy
-import copy
-import time
 import ConfigParser
-import my_pablo_uniform
+import copy
 import ExactSolution2D as ExactSolution2D
-#import Laplacian2D as Laplacian
-#import Laplacian as Laplacian
 import Laplacian02 as Laplacian
+from   mpi4py import MPI
+import my_class_vtk
+import my_pablo_uniform
+import numpy
+import os
+import petsc4py
+from   petsc4py import PETSc
+import sys
+import time
+import utilities
+# https://pythonhosted.org/petsc4py/apiref/petsc4py-module.html
+petsc4py.init(sys.argv)
 # ------------------------------------------------------------------------------
 
 # ------------------------------------------------------------------------------
@@ -33,8 +32,13 @@ config = ConfigParser.ConfigParser()
 files_list = config.read(config_file)
 # The previous "ConfigParser.read()" returns a list of file correctly read.
 if len(files_list) == 0:
-    print("Unable to read configuration file \"" + str(config_file) + "\".")
-    print("Program exited.")
+    msg = utilities.join_strings("Unable to read configuration file \"",
+                                 config_file                           ,
+                                 "\"."                                 ,
+                                 # https://docs.python.org/3/library/os.html
+                                 os.linesep                            ,
+                                 "Program exited.")                
+    print(msg)
     sys.exit(1)
 # If some options or sections are not present, then the corresponding exception
 # is catched, printed and the program exits.
@@ -83,16 +87,19 @@ try:
     overlapping = config.getboolean("PROBLEM", "Overlapping")
     # Particles interaction.
     p_inter = config.getboolean("PROBLEM", "ParticlesInteraction")
-    # Logical to physical mappin.
+    # Logical to physical mapping.
     mapping = config.getboolean("PROBLEM", "Mapping")
+    # Log infos to log file or not.
+    to_log = config.getboolean("PROBLEM", "Log")
 except (ConfigParser.NoOptionError , 
         ConfigParser.NoSectionError,
         ParsingFileException       ,
         AssertionError):
     sys.exc_info()[1]
-    print("Program exited. Problems with config file \"" + 
-          str(config_file)                               + 
-          "\"")
+    msg = utilities.join_strings("Program exited. Problems with config file \"",
+                                 config_file                                   ,
+                                 "\".")
+    print(msg)
     sys.exit(1)
 # List of names for the MPI intercommunicators.
 comm_names = ["comm_" + str(j) for j in range(n_grids)]
@@ -241,8 +248,8 @@ def create_intercomms(n_grids      ,
             n_intercomms = n_grids - 1
             grids_to_connect = range(0, n_grids)
             grids_to_connect.remove(proc_grid)
-            
-
+    # Communicator local's name. 
+    comm_l_n = comm_l.Get_name()
     for grid in grids_to_connect:
         # Remote grid.
         r_grid = grid
@@ -292,17 +299,17 @@ def create_intercomms(n_grids      ,
                                             l_index)
         
         intercomm_dict.update({l_index : intercomm})
-        msg = "Created intercomm \""         + \
-              "comm_" + str(l_index)         + \
-              "\" for local comm \""         + \
-              str(comm_l.Get_name())         + \
-              "\" and peer communicator \""  + \
-              str(l_peer_comm)               + \
-              "\" with remote comm \""       + \
-              "comm_" + str(r_grid)          + \
-              "\" and peer communicator \""  + \
-              str(r_peer_comm)               + \
-              "\"."
+        msg = utilities.join_strings("Created intercomm \"comm_"  ,
+                                     "%d" % l_index               ,
+                                     "\" for local comm \""       ,
+                                     comm_l_n                     ,
+                                     "\" and peer communicator \"",
+                                     "%d" % l_peer_comm           ,
+                                     "\" with remote comm \"comm_",
+                                     "%d" % r_grid                ,
+                                     "\" and peer communicator \"",
+                                     "%d" % r_peer_comm           ,
+                                     "\".")
         logger.info(msg)
 # ------------------------------------------------------------------------------
 
@@ -329,15 +336,11 @@ def set_octree(comm_l,
     an = anchors[proc_grid]
     # Edge's length for PABLO.
     ed = edges[proc_grid]
-    h = ed / (2.0**refinement_levels)
-    #if proc_grid == 0:
-    #    h = 0.0
-    h = 0.0
     pablo_log_file = "./log/" + comm_name + ".log"
-    pablo = my_pablo_uniform.Py_My_Pablo_Uniform(an[0]+h         ,
-                                                 an[1]+h         ,
+    pablo = my_pablo_uniform.Py_My_Pablo_Uniform(an[0]         ,
+                                                 an[1]         ,
                                                  an[2]         ,
-                                                 ed-(2.0*h)            ,
+                                                 ed            ,
                                                  dimension     , # Dim
                                                  20            , # Max level
                                                  pablo_log_file, # Logfile
@@ -386,7 +389,6 @@ def compute(comm_dictionary     ,
            data_to_save (numpy.array) : array containings the data to be saved
                                         subsequently into the \"VTK\" file."""
 
-    #laplacian = Laplacian.Laplacian2D(comm_dictionary)
     laplacian = Laplacian.Laplacian(comm_dictionary)
     exact_solution = ExactSolution2D.ExactSolution2D(comm_dictionary)
 
@@ -398,14 +400,10 @@ def compute(comm_dictionary     ,
                                                                  dimension,
                                                                  logger   ,
                                                                  log_file)
-        #print(trans_adj_dictionary)
-        #print(trans_adj_dictionary)
-        #print(trans_adj_dictionary)
         t_coeffs = trans_dictionary[proc_grid]
         t_coeffs_adj = trans_adj_dictionary[proc_grid]
         laplacian.init_trans_dict(trans_dictionary)
         laplacian.init_trans_adj_dict(trans_adj_dictionary)
-        #laplacian.temp_funct()
     (d_nnz, o_nnz) = laplacian.create_mask(o_n_oct = 0)
     laplacian.init_sol()
 
@@ -437,17 +435,16 @@ def compute(comm_dictionary     ,
     exact_solution.e_s_der(n_p_centers[:, 0], 
                            n_p_centers[:, 1],
                            n_p_centers[:, 2] if (dimension == 3) else None)
-    #if proc_grid == 1:
-    #    laplacian.init_rhs(exact_solution.sol)
-    #else:
-    #    laplacian.init_rhs(exact_solution.s_der)
     laplacian.init_rhs(exact_solution.s_der)
     laplacian.set_b_c()
     laplacian.update_values(intercomm_dictionary)
     laplacian.solve()
     (norm_inf, norm_L2) = laplacian.evaluate_norms(exact_solution.sol,
                                                    laplacian.sol.getArray())
-    print("process " + str(comm_w.Get_rank()) + " " + str((norm_inf, norm_L2)))
+    msg = utilities.join_strings("process "               ,
+                                 "%d " % comm_w.Get_rank(),
+                                 "(%f, %f)" % (norm_inf, norm_L2))
+    print(msg) 
     interpolate_sol = laplacian.reset_partially_solution()
     #interpolate_sol = laplacian.interpolate_solution()
     if mapping:
@@ -488,11 +485,20 @@ def main():
     # Current intracommunicator's name.
     comm_name = comm_names[proc_grid]
     comm_l.Set_name(comm_name)
+    #Communicator local's name.
+    comm_l_n = comm_l.Get_name()
+    #Communicator local's rank.
+    comm_l_r = comm_l.Get_rank()
+    #Communicator global's name.
+    comm_w_n = comm_w.Get_name()
+    msg = utilities.join_strings("Started function for local comm \"",
+                                 comm_l_n                            ,
+                                 "\" and world comm \""              ,
+                                 comm_w_n                            ,
+                                 "\" and rank \""                    ,
+                                 "%d" % comm_l_r                     ,
+                                 "\".")            
 
-    msg = "Started function for local comm \"" + str(comm_l.Get_name())      + \
-          "\" and world comm \"" + str(comm_w.Get_name()) + "\" and rank \"" + \
-          str(comm_l.Get_rank()) + "\"."
-    
     logger = utilities.Logger(__name__, 
                               log_file).logger
     logger.info(msg)
@@ -562,9 +568,14 @@ def main():
     # Call parallelization and writing onto file.
     vtk.print_vtk()
 
-    msg = "Ended function for local comm \"" + str(comm_l.Get_name())        + \
-          "\" and world comm \"" + str(comm_w.Get_name()) + "\" and rank \"" + \
-          str(comm_l.Get_rank()) + "\"."
+    msg = utilities.join_strings("Ended function for local comm \""  ,
+                                 comm_l_n                            ,
+                                 "\" and world comm \""              ,
+                                 comm_w_n                            ,
+                                 "\" and rank \""                    ,
+                                 "%d" % comm_l_r                     ,
+                                 "\".")            
+    msg = "".join(msg)
 
     logger.info(msg)
 # ------------------------------------------------------------------------------
@@ -575,19 +586,26 @@ if __name__ == "__main__":
         msg = "STARTED LOG"
         logger = utilities.log_msg(msg, 
                                    log_file)
-        msg = "NUMBER OF GRIDS: " + str(n_grids) + "."
+        msg = utilities.join_strings("NUMBER OF GRIDS: ",
+                                     "%d." % n_grids)
         utilities.log_msg(msg     ,
                           log_file,
                           logger)
-        msg = "ANCHORS: " + str(anchors) + "." 
+        msg = utilities.join_strings("ANCHORS: " ,
+                                     str(anchors),
+                                     ".")
         utilities.log_msg(msg     ,
                           log_file,
                           logger)
-        msg = "EDGES: " + str(edges) + "."        
+        msg = utilities.join_strings("EDGES: " ,
+                                     str(edges),
+                                     ".")
         utilities.log_msg(msg     ,
                           log_file,
                           logger)
-        msg = "REFINEMENT LEVELS: " + str(refinements) + "."        
+        msg = utilities.join_strings("REFINEMENT LEVELS: " ,
+                                     str(refinements)      ,
+                                     ".")
         utilities.log_msg(msg     ,
                           log_file,
                           logger)
@@ -617,7 +635,7 @@ if __name__ == "__main__":
     
         t_end = time.time()
 
-        msg = "EXECUTION TIME: " + str(t_end - t_start) + " secs."
+        msg = "EXECUTION TIME: %f secs." % (t_end - t_start)
         utilities.log_msg(msg     ,
                           log_file,
                           logger)
