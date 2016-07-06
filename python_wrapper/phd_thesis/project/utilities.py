@@ -866,6 +866,15 @@ def apply_persp_trans(dimension   ,
             logger.error(msg_err)
     finally:
         return t_point
+
+def join_strings(*args):
+    # List of strings to join.
+    strs_list = []
+    map(strs_list.append, args)
+    #strs_list = [str(arg) for arg in args]
+    # Returned string.
+    r_s = "".join(strs_list)
+    return r_s
 # ------------------------------------------------------------------------------
 
 # ------------------------------------LOGGER------------------------------------
