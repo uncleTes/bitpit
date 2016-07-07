@@ -443,7 +443,8 @@ def compute(comm_dictionary     ,
                                                    laplacian.sol.getArray())
     msg = utilities.join_strings("process "               ,
                                  "%d " % comm_w.Get_rank(),
-                                 "(%f, %f)" % (norm_inf, norm_L2))
+                                 "(%e, %e)" % (norm_inf, norm_L2))
+                                 #str((norm_inf, norm_L2)))
     print(msg) 
     interpolate_sol = laplacian.reset_partially_solution()
     #interpolate_sol = laplacian.interpolate_solution()
