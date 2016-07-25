@@ -160,10 +160,12 @@ def find_files_in_dir(extension,
 
     return files_founded
 
-def set_class_logger(obj, 
-                     log_file):
+def set_class_logger(obj     , 
+                     log_file,
+                     what_log):
     obj_logger = Logger(type(obj).__name__,
-                        log_file).logger
+                        log_file          ,
+                        what_log).logger
     return obj_logger
 
 def check_mpi_intracomm(comm  , 
@@ -879,13 +881,17 @@ def join_strings(*args):
 
 # ------------------------------------LOGGER------------------------------------
 class Logger(object):
-    def __init__(self, 
-                 name, 
-                 log_file):
+    def __init__(self    , 
+                 name    , 
+                 log_file,
+                 what_log):
         self._logger = logging.getLogger(name)
         # http://stackoverflow.com/questions/15870380/python-custom-logging-across-all-modules
         if not self._logger.handlers:
             self._logger.setLevel(logging.DEBUG)
+            # http://stackoverflow.com/questions/2266646/how-to-i-disable-and-re-enable-console-logging-in-python
+            if (what_log == "critical"):
+                self._logger.setLevel(logging.CRITICAL)
             self._handler = logging.FileHandler(log_file)
 
             self._formatter = logging.Formatter("%(name)15s - "    + 

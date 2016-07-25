@@ -34,9 +34,13 @@ class BaseClass2D(object):
         octree = kwargs["octree"]
         comm_w = kwargs["world communicator"]
         log_file =  kwargs["log file"]
-
-        self.logger = utilities.set_class_logger(self, 
-                                                 log_file)
+        to_log = kwargs["to log"]
+        what_log = "debug"
+        if (not to_log):
+            what_log = "critical"
+        self.logger = utilities.set_class_logger(self    , 
+                                                 log_file,
+                                                 what_log)
         # Mangling with the prefix \"__\" to have \"private\" attributes. Use 
         # \"_\" instead to have \"protected\" ones.
         # http://stackoverflow.com/questions/1641219/does-python-have-private-variables-in-classes

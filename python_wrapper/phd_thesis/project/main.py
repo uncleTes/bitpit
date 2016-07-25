@@ -205,6 +205,7 @@ def set_comm_dict(n_grids  ,
     comm_dictionary.update({"process grid" : proc_grid})
     comm_dictionary.update({"overlapping" : overlapping})
     comm_dictionary.update({"dimension" : dimension})
+    comm_dictionary.update({"to log" : to_log})
     comm_dictionary.update({"particles interaction" : p_inter})
     comm_dictionary.update({"mapping" : mapping})
     comm_dictionary.update({"log file" : log_file})
@@ -499,9 +500,12 @@ def main():
                                  "\" and rank \""                    ,
                                  "%d" % comm_l_r                     ,
                                  "\".")            
-
+    what_log = "debug"
+    if (not to_log):
+        what_log = "critical"
     logger = utilities.Logger(__name__, 
-                              log_file).logger
+                              log_file,
+                              what_log).logger
     logger.info(msg)
     
     # Creating differents MPI intercommunicators.
