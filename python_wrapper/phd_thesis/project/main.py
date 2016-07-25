@@ -47,12 +47,12 @@ try:
                             "NumberOfGrids")
 
     anchors = utilities.get_lists_from_string(config.get("PABLO", "Anchors"), 
-                                              "; "                          , 
-                                              ", "                          ,
+                                              ";"                           , 
+                                              ","                           ,
                                               False)
 
     edges = utilities.get_list_from_string(config.get("PABLO", "Edges"), 
-                                           ", "                        , 
+                                           ","                         , 
                                            False)
     t_points = utilities.get_lists_from_string(config.get("PABLO",
                                                           "TransformedPoints"),
@@ -62,7 +62,7 @@ try:
 
     refinements = utilities.get_list_from_string(config.get("PABLO", 
                                                             "Refinements"), 
-                                                 ", ")
+                                                 ",")
     dimension = config.getint("PROBLEM", "Dimension")
 
     # Octants for grid.
