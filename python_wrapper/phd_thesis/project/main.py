@@ -95,10 +95,12 @@ except (ConfigParser.NoOptionError ,
         ConfigParser.NoSectionError,
         ParsingFileException       ,
         AssertionError):
-    sys.exc_info()[1]
+    exc_info = str(sys.exc_info()[1])
     msg = utilities.join_strings("Program exited. Problems with config file \"",
                                  config_file                                   ,
-                                 "\".")
+                                 "\": "                                        ,
+                                 exc_info                                      ,
+                                 ".")
     print(msg)
     sys.exit(1)
 # List of names for the MPI intercommunicators.
