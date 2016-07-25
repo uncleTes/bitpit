@@ -874,6 +874,7 @@ class Laplacian(BaseClass2D.BaseClass2D):
     # to allocate for each row in the system's matrix. Be aware of that, for the
     # moment, this last count is exact for the background grid but for the 
     # foreground ones it consider the worst case (for the two levels gap).
+    @profile
     def create_mask(self, 
                     o_n_oct = 0):
         """Method which creates the new octants' numerations and initialize non
