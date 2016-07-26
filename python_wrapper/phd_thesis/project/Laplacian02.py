@@ -1187,7 +1187,7 @@ class Laplacian(BaseClass2D.BaseClass2D):
         # If an element is being allocated in a place not preallocate, then 
         # the program will stop.
         self._b_mat.setOption(self._b_mat.Option.NEW_NONZERO_ALLOCATION_ERR, 
-                              False)
+                              True)
         
         o_ranges = self.get_ranges()
         dimension = self._dim
