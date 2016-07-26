@@ -921,7 +921,7 @@ class Laplacian(BaseClass2D.BaseClass2D):
         dimension = self._dim
         mapping = self._mapping
         # \"range\" gives us a list.
-        octants = range(0, n_oct)
+        octants = xrange(0, n_oct)
         g_octants = [octree.get_global_idx(octant) for octant in octants]
         py_octs = [octree.get_octant(octant) for octant in octants]
         centers = [octree.get_center(octant)[: dimension] for octant in octants]         
