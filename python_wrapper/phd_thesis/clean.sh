@@ -4,6 +4,12 @@ CURRENT_DIR_PATH=$(pwd)
 EXECUTE_DIR_PATH="/home/federico/WorkSpace/PythonProjects/PhdThesis/bitpit/python_wrapper/phd_thesis"
 
 if [ "$EXECUTE_DIR_PATH" == "$CURRENT_DIR_PATH" ]; then
+    count=`ls -1 ./*.lprof 2>/dev/null | wc -l`
+
+    if [ $count != 0 ]; then 
+        rm -v ./*.lprof
+    fi
+
     SUB_DIR="./data"
     
     if [ -d "$SUB_DIR" ]; then
