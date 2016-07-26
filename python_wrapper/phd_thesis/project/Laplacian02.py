@@ -807,7 +807,7 @@ class Laplacian(BaseClass2D.BaseClass2D):
                 c_t_dict = self.get_trans(0)
                 oct_corners = utilities.get_corners_from_center(n_center,
                                                                 h)
-                n_oct_corners = len(oct_corners)
+                n_oct_corners = 4 if (dimension == 2) else 8
                 for i, corner in enumerate(oct_corners):
                     is_corner_penalized = False
                     corner = utilities.apply_persp_trans(dimension, 
