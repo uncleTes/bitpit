@@ -751,6 +751,7 @@ class Laplacian(BaseClass2D.BaseClass2D):
                         octant       ,
                         o_count      ,
                         d_count      ,
+                        # Stencil's index.
                         s_i          ,
                         p_bound      ,
                         h            ,
@@ -801,6 +802,7 @@ class Laplacian(BaseClass2D.BaseClass2D):
                 m_index = m_index + oct_offset
         if is_background:
             if (mapping):
+                is_n_penalized = True
                 threshold = 0.0
                 t_foregrounds = self._t_foregrounds
                 # Current transformation matrix's dictionary.
@@ -822,10 +824,8 @@ class Laplacian(BaseClass2D.BaseClass2D):
                                                                      log_file     ,
                                                                      threshold)
                     if (not is_corner_penalized):
+                        is_n_penalized = False
                         break
-                    else:
-                        if (i == (n_oct_corners - 1)):
-                            is_n_penalized = True
             else:
                 # Is neighbour penalized.
                 is_n_penalized = utilities.check_oct_into_squares(n_center,
