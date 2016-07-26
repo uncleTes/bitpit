@@ -979,11 +979,11 @@ class Laplacian(BaseClass2D.BaseClass2D):
                 # to store info of the stencil it belongs to to push on the
                 # relative rows of the matrix, the right indices of the octants
                 # of the foreground grid owning the penalized one.
-                # TODO: 12 or 16 instead of 9 for grid not perfectly 
-                # superposed?
                 stencil = [-1] * 43
                 stencil[0] = g_octant
                 stencil[1], stencil[2] = center
+                # http://www.laurentluce.com/posts/python-dictionary-implementation/
+                # http://effbot.org/zone/python-hash.htm
                 self._edl.update({key : stencil})
             else:
                 self._nln[octant] = new_oct_count
