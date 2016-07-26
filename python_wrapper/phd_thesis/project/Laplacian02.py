@@ -904,6 +904,7 @@ class Laplacian(BaseClass2D.BaseClass2D):
         nnodes = octree.get_n_nodes()
         face_node = octree.get_face_node()
         h = self._h
+        dimension = self._dim
         comm_l = self._comm
         rank_l = comm_l.Get_rank()
         h2 = h * h
@@ -943,7 +944,7 @@ class Laplacian(BaseClass2D.BaseClass2D):
                     threshold = 0.0
                     oct_corners = utilities.get_corners_from_center(center,
                                                                     h)
-                    n_oct_corners = len(oct_corners)
+                    n_oct_corners = 4 if (dimension == 2) else 8
                     for i, corner in enumerate(oct_corners):
                         is_corner_penalized = False
                         corner = utilities.apply_persp_trans(dimension, 
