@@ -931,7 +931,6 @@ class Laplacian(BaseClass2D.BaseClass2D):
 
         for octant in octants:
             d_count, o_count = 0, 0
-            neighs, ghosts = ([] for i in range(0, 2))
             g_octant = g_octants[octant]
             py_oct = py_octs[octant]
             center  = centers[octant]
@@ -1003,6 +1002,7 @@ class Laplacian(BaseClass2D.BaseClass2D):
                 # Not boundary face.
                 if not self._octree.get_bound(py_oct, 
                                               face):
+                    neighs, ghosts = ([] for i in range(0, 2))
                     n_y_s.update(face_node[face][0 : 2])
                     (d_count, 
                      o_count, 
@@ -1036,30 +1036,19 @@ class Laplacian(BaseClass2D.BaseClass2D):
                     # to interpolate stencil values for boundary conditions of 
                     # the octants of the foreground grid. 
                     if not is_background:
-                        if not f_b_face:
-                            o_count += 4
-                            if (mapping):
-                                # TODO: Control if this number is right and 
-                                #       maybe find a better approach to count
-                                #       Non zero elements in the matrix (being
-                                #       more precise indicating also the indices
-                                #       of the elements not null).
-                                o_count += 4 # For the neighbours of node.
-                            f_b_face = True 
-                        else:
-                            o_count += 3
-                            if (mapping):
-                                # TODO: Control if this number is right and 
-                                #       maybe find a better approach to count
-                                #       Non zero elements in the matrix (being
-                                #       more precise indicating also the indices
-                                #       of the elements not null).
-                                o_count += 2 # For the neighbours of node.
+                        #TODO: Check if foreground grid boundary point is or not
+                        #      inside the background grid. For the moment every
+                        #      case adds +9 at \"o_count\".
+                        o_count += 9 # For the neighbours of node.
             # New set with elements in \"n_y_s\" but not in \"n_t_n_s\". 
             n_y_s = n_y_s.difference(n_t_n_s)
             if (mapping):
+                for node in n_t_n_s:
+                    if not is_background:
+                        o_count += 9
                 # Nodes' loop.
                 for node in n_y_s:
+                    neighs, ghosts = ([] for i in range(0, 2))
                     (d_count, 
                      o_count, 
                      s_i) = self.check_neighbour(2                            ,
