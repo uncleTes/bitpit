@@ -777,9 +777,10 @@ class Laplacian(BaseClass2D.BaseClass2D):
                                                   ghosts)
         # If we are outside the current octree...
         # Empty lists in python are \"False\".
+        #TODO: check if this \"if\" is useful or not.
         if ((codim == 2) and (not ghosts)):
-                return (d_count, o_count, s_i) if (not yet_masked) else \
-                       (None, None, None)
+            return (d_count, o_count, s_i) if (not yet_masked) else \
+                   (None, None, None)
         # ...else...
         if not ghosts[0]:
             if (yet_masked):
