@@ -1091,12 +1091,13 @@ class Laplacian(BaseClass2D.BaseClass2D):
                                          is_background):
         n_oct = self._n_oct
         comm_l = self._comm
+        comm_l_s = comm_l.size
         comm_w = self._comm_w
         rank_l = comm_l.Get_rank()
         tot_not_masked_oct = numpy.sum(self._nln != -1)
         tot_masked_oct = n_oct - tot_not_masked_oct
         # Elements not penalized for grid.
-        el_n_p_for_grid = numpy.empty(comm_l.size,
+        el_n_p_for_grid = numpy.empty(comm_l_s,
                                       dtype = int)
         comm_l.Allgather(tot_not_masked_oct, 
                          el_n_p_for_grid)
@@ -1105,7 +1106,7 @@ class Laplacian(BaseClass2D.BaseClass2D):
         # because although it is global, it is global at the inside of each
         # octant, not in the totality of the grids.
         oct_offset = 0
-        for i in xrange(0, len(el_n_p_for_grid)):
+        for i in xrange(0, comm_l_s):
             if i < rank_l:
                 oct_offset += el_n_p_for_grid[i]
         # Adding the offset at the new local numeration.
@@ -1113,17 +1114,16 @@ class Laplacian(BaseClass2D.BaseClass2D):
         
         if is_background:
             # Send counts. How many element have to be sent by each process.
-            #self._s_counts = []
-            self._s_counts = numpy.empty(comm_l.size,
+            self._s_counts = numpy.empty(comm_l_s,
                                          dtype = numpy.int64)
             one_el = numpy.empty(1, 
                                  dtype = numpy.int64)
             one_el[0] = self._nln.size
             comm_l.Allgather(one_el, 
                              [self._s_counts, 1, MPI.INT64_T])
-            displs = [0] * self._s_counts.size
+            displs = [0] * comm_l_s
             offset = 0
-            for i in range(1, self._s_counts.size):
+            for i in xrange(1, comm_l_s):
                 offset += self._s_counts[i-1]
                 displs[i] = offset
             comm_l.Gatherv(self._nln                                       ,
