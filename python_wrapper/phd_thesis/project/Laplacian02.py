@@ -8,6 +8,10 @@ import collections
 import BaseClass2D
 import ExactSolution2D
 import numpy
+# http://sbrisard.github.io/posts/20130904-First_things_first_import_petsc4py_correctly.html
+import sys
+import petsc4py
+petsc4py.init(sys.argv)
 from petsc4py import PETSc 
 from mpi4py import MPI
 import utilities

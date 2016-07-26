@@ -9,13 +9,14 @@ import my_class_vtk
 import my_pablo_uniform
 import numpy
 import os
-import petsc4py
-from   petsc4py import PETSc
+# http://sbrisard.github.io/posts/20130904-First_things_first_import_petsc4py_correctly.html
 import sys
-import time
-import utilities
+import petsc4py
 # https://pythonhosted.org/petsc4py/apiref/petsc4py-module.html
 petsc4py.init(sys.argv)
+from   petsc4py import PETSc
+import time
+import utilities
 # ------------------------------------------------------------------------------
 
 # ------------------------------------------------------------------------------
