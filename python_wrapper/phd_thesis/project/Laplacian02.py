@@ -838,10 +838,10 @@ class Laplacian(BaseClass2D.BaseClass2D):
             if not is_penalized:
                 if is_n_penalized:
                     # Being the neighbour penalized, it means that it 
-                    # will be substituted by 4 octant being part of 
+                    # will be substituted by 9 octant being part of 
                     # the foreground grids, so being on the non diagonal
                     # part of the grid.
-                    o_count += 4
+                    o_count += 9
                 else:
                     if ghosts[0]:
                         o_count += 1
