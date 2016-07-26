@@ -939,6 +939,7 @@ class Laplacian(BaseClass2D.BaseClass2D):
             # Background grid.
             if is_background:
                 if (mapping):
+                    is_penalized = True
                     threshold = 0.0
                     oct_corners = utilities.get_corners_from_center(center,
                                                                     h)
@@ -957,10 +958,8 @@ class Laplacian(BaseClass2D.BaseClass2D):
                                                                          log_file     ,
                                                                          threshold)
                         if (not is_corner_penalized):
+                            is_penalized = False
                             break
-                        else:
-                            if (i == (n_oct_corners - 1)):
-                                is_penalized = True
                 else:
                     is_penalized = utilities.check_oct_into_squares(center ,
                                                       	            p_bound,
