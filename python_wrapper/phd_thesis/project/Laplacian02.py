@@ -1633,11 +1633,12 @@ class Laplacian(BaseClass2D.BaseClass2D):
                          None)
 
         # Setting tolerances.
-        tol = 1.e-13
+        tol = 1.e-06
         ksp.setTolerances(rtol = tol            , 
                           atol = tol            , 
                           divtol = PETSc.DEFAULT, # Let's PETSc use DEAFULT
                           max_it = PETSc.DEFAULT) # Let's PETSc use DEAFULT
+        ksp.setType("gmres")
         ksp.setFromOptions()
         # Solve the system.
         #self._b_mat.view()
