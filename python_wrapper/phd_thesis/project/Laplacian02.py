@@ -879,7 +879,7 @@ class Laplacian(BaseClass2D.BaseClass2D):
     # to allocate for each row in the system's matrix. Be aware of that, for the
     # moment, this last count is exact for the background grid but for the 
     # foreground ones it consider the worst case (for the two levels gap).
-    @profile
+    #@profile
     def create_mask(self, 
                     o_n_oct = 0):
         """Method which creates the new octants' numerations and initialize non
@@ -1706,7 +1706,7 @@ class Laplacian(BaseClass2D.BaseClass2D):
                   self._sol)
         # How many iterations are done.
         it_number = ksp.getIterationNumber()
-        print(ksp.getConvergedReason())
+        #print(ksp.getConvergedReason())
         #self._b_mat.view()
 
         msg = "Evaluated solution"
@@ -2179,7 +2179,7 @@ class Laplacian(BaseClass2D.BaseClass2D):
                                               ids_octree_contained[0]),
                                              (global_idxs <= 
                                               ids_octree_contained[1])))
-        print(str(self._comm_w.Get_rank()) + " " + str(len(idxs[0])))
+        #print(str(self._comm_w.Get_rank()) + " " + str(len(idxs[0])))
         for idx in idxs[0]:
             if (mapping):
                 # Foreground transformation matrix adjoint's dictionary.
