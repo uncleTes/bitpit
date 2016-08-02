@@ -1075,7 +1075,8 @@ class Laplacian(BaseClass2D.BaseClass2D):
                 o_nnz.append(o_count)
                 self._centers_not_penalized.append(center)
 
-        self.spread_new_background_numeration(is_background)
+        self.new_spread_new_background_numeration(is_background)
+        #self.spread_new_background_numeration(is_background)
 
         msg = "Created mask"
         self.log_msg(msg   ,
@@ -1083,6 +1084,65 @@ class Laplacian(BaseClass2D.BaseClass2D):
 
         return (d_nnz, o_nnz)
     # --------------------------------------------------------------------------
+    #@profile
+    def new_spread_new_background_numeration(self,
+                                             is_background):
+        to_send = None
+        to_receive = self._ngn
+        n_oct = self._n_oct
+        comm_l = self._comm
+        comm_l_s = comm_l.size
+        comm_w = self._comm_w
+        comm_w_s = comm_w.size
+        rank_l = comm_l.Get_rank()
+        tot_not_masked_oct = numpy.sum(self._nln != -1)
+        tot_masked_oct = n_oct - tot_not_masked_oct
+        # Elements not penalized for grid.
+        el_n_p_for_grid = numpy.empty(comm_l_s,
+                                      dtype = int)
+        comm_l.Allgather(tot_not_masked_oct, 
+                         el_n_p_for_grid)
+        # Counting the number of octants not penalized owned by all the previous
+        # grids to know the offset to add at the global numeration of the octree
+        # because although it is global, it is global at the inside of each
+        # octant, not in the totality of the grids.
+        oct_offset = 0
+        for i in xrange(0, rank_l):
+            oct_offset += el_n_p_for_grid[i]
+        # Adding the offset at the new local numeration.
+        self._nln[self._nln >= 0] += oct_offset
+        # Send counts. How many element have to be sent by each process.
+        self._s_counts = numpy.empty(comm_w_s,
+                                     dtype = numpy.int64)
+        one_el = numpy.empty(1, 
+                             dtype = numpy.int64)
+        one_el[0] = self._nln.size
+        if (not is_background):
+            one_el[0] = 0
+            to_send = numpy.zeros(0, dtype = numpy.int64)
+
+        comm_w.Allgather(one_el, 
+                         [self._s_counts, 1, MPI.INT64_T])
+        displs = numpy.empty(comm_w_s, dtype = numpy.int64)
+        # Local displacement.
+        l_displ = numpy.zeros(1, dtype = numpy.int64)
+        offset = 0
+        if (is_background):
+            for i in xrange(0, rank_l):
+                offset += self._s_counts[i]
+            l_displ[0] = offset
+            to_send = self._nln
+
+        comm_w.Allgather(l_displ,
+                         [displs, 1, MPI.INT64_T])
+
+        comm_w.Allgatherv(to_send,
+                          [to_receive, self._s_counts, displs, MPI.INT64_T])
+
+        msg = "Spread new global background masked numeration"
+        self.log_msg(msg   ,
+                     "info")
+        
 
     # --------------------------------------------------------------------------
     # The new masked global numeration for the octants of the background grid 
