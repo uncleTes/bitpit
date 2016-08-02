@@ -644,6 +644,11 @@ if __name__ == "__main__":
         t_end = time.time()
 
         msg = "EXECUTION TIME: %f secs." % (t_end - t_start)
+        file_msg = utilities.join_strings(str(t_end - t_start),
+                                          "\n")
+        f = open('benchmark.txt', 'a')
+        f.write(file_msg)
+        f.close()
         utilities.log_msg(msg     ,
                           log_file,
                           logger)
