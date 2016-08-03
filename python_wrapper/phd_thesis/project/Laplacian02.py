@@ -873,100 +873,86 @@ class Laplacian(BaseClass2D.BaseClass2D):
     # moment, this last count is exact for the background grid but for the 
     # foreground ones it consider the worst case (for the two levels gap).
     #@profile
-    def create_mask(self, 
-                    o_n_oct = 0):
+    def create_mask(self):
         """Method which creates the new octants' numerations and initialize non
            zero elements' number for row in the matrix of the system.
            
-           Arguments:
-               o_n_oct (int) : number of octants overlapped.
-
            Returns:
                (d_nnz, o_nnz) (tuple) : two lists containting the diagonal
                                         block's and non diagonal block's number
                                         of non zero elements."""
 
-        log_file = self.logger.handlers[0].baseFilename
         logger = self.logger
+        log_file = logger.handlers[0].baseFilename
         penalization = self._pen
-        f_bound = self._f_bound
         grid = self._proc_g
         n_oct = self._n_oct
         octree = self._octree
         nfaces = octree.get_n_faces()
-        nnodes = octree.get_n_nodes()
         face_node = octree.get_face_node()
         h = self._h
         dimension = self._dim
-        comm_l = self._comm
-        rank_l = comm_l.Get_rank()
         h2 = h * h
-        is_background = False
-        overlap = o_n_oct * h
-        p_bound = []
-        if not grid:
-            is_background = True
-            p_bound = self.apply_overlap(overlap)
+        is_background = True if (not grid) else False
         # Lists containing number of non zero elements for diagonal and non
         # diagonal part of the coefficients matrix, for row. 
         d_nnz, o_nnz = ([] for i in range(0, 2))
         new_oct_count = 0
-        dimension = self._dim
-        mapping = self._mapping
-        # \"range\" gives us a list.
+        # \"range\" gives us a list, \"xrange\" an iterator.
         octants = xrange(0, n_oct)
         g_octants = [octree.get_global_idx(octant) for octant in octants]
         py_octs = [octree.get_octant(octant) for octant in octants]
         centers = [octree.get_center(octant)[: dimension] for octant in octants]         
-        if (mapping):
-            t_foregrounds = self._t_foregrounds
+        t_foregrounds = self._t_foregrounds
+        if (is_background):
             # Current transformation matrix's dictionary.
             c_t_dict = self.get_trans(0)
+
+        # Code hoisting.
+        get_corners_from_center = utilities.get_corners_from_center
+        apply_persp_trans = utilities.apply_persp_trans
+        is_point_inside_polygons = utilities.is_point_inside_polygons
+        get_bound = self._octree.get_bound
+        check_neighbour = self.check_neighbour
 
         for octant in octants:
             d_count, o_count = 0, 0
             g_octant = g_octants[octant]
             py_oct = py_octs[octant]
+            # Lambda function.
+            g_b = lambda x : get_bound(py_oct, x)
             center  = centers[octant]
             # Check to know if an octant is penalized.
             is_penalized = False
             # Background grid.
-            if is_background:
-                if (mapping):
-                    is_penalized = True
-                    threshold = 0.0
-                    oct_corners = utilities.get_corners_from_center(center,
-                                                                    h)
-                    n_oct_corners = 4 if (dimension == 2) else 8
-                    for i, corner in enumerate(oct_corners):
-                        is_corner_penalized = False
-                        corner = utilities.apply_persp_trans(dimension, 
-                                                             corner   , 
-                                                             c_t_dict ,
-                                                             logger   ,  
-                                                             log_file)[: dimension]
-                        (is_corner_penalized,
-                         n_polygon) = utilities.is_point_inside_polygons(corner       ,
-                                                                         t_foregrounds,
-                                                                         logger       ,
-                                                                         log_file     ,
-                                                                         threshold)
-                        if (not is_corner_penalized):
-                            is_penalized = False
-                            break
-                else:
-                    is_penalized = utilities.check_oct_into_squares(center ,
-                                                      	            p_bound,
-                                                                    h      ,
-                                                                    0.0    ,
-                                                  	            logger ,
-                                                  	            log_file)
-            if is_penalized:
+            if (is_background):
+                is_penalized = True
+                threshold = 0.0
+                oct_corners = get_corners_from_center(center,
+                                                      h)
+                for i, corner in enumerate(oct_corners):
+                    is_corner_penalized = False
+                    corner = apply_persp_trans(dimension, 
+                                               corner   , 
+                                               c_t_dict ,
+                                               logger   ,  
+                                               log_file)[: dimension]
+                    (is_corner_penalized,
+                     n_polygon) = is_point_inside_polygons(corner       ,
+                                                           t_foregrounds,
+                                                           logger       ,
+                                                           log_file     ,
+                                                           threshold)
+                    if (not is_corner_penalized):
+                        is_penalized = False
+                        break
+
+            if (is_penalized):
                 self._nln[octant] = -1
                 key = (n_polygon, # Foreground grid to which the node belongs to
                        g_octant , # Global index (not yet masked)
                        h)         # Node edge's size
-                if self._p_inter:
+                if (self._p_inter):
                     key = key + (-1, -1,)
                 # If the octant is covered by the foreground grids, we need
                 # to store info of the stencil it belongs to to push on the
@@ -990,34 +976,30 @@ class Laplacian(BaseClass2D.BaseClass2D):
             n_y_s = set()
             # Nodes to not see.
             n_t_n_s = set()
+
             # Faces' loop.
             for face in xrange(0, nfaces):
                 # Not boundary face.
-                if not self._octree.get_bound(py_oct, 
-                                              face):
+                if (not g_b(face)):
                     neighs, ghosts = ([] for i in range(0, 2))
                     n_y_s.update(face_node[face][0 : 2])
                     (d_count, 
                      o_count, 
-                     s_i) = self.check_neighbour(1                            ,
-                                                 face                         ,
-                                                 neighs                       ,
-                                                 ghosts                       ,
-                                                 octant                       ,
-                                                 o_count                      ,
-                                                 d_count                      ,
-                                                 s_i                          ,
-                                                 p_bound                      ,
-                                                 h                            ,
-                                                 key if is_penalized else None,
-                                                 octree                       ,
-                                                 is_penalized                 ,
-                                                 is_background                ,
-                                                 n_polygon if (mapping and    \
-                                                               is_background) \
-                                                 else None                    ,
-                                                 logger                       ,
-                                                 log_file)
+                     s_i) = check_neighbour(1                            ,
+                                            face                         ,
+                                            neighs                       ,
+                                            ghosts                       ,
+                                            octant                       ,
+                                            o_count                      ,
+                                            d_count                      ,
+                                            s_i                          ,
+                                            h                            ,
+                                            key if is_penalized else None,
+                                            octree                       ,
+                                            is_penalized                 ,
+                                            is_background                ,
+                                            n_polygon if (is_background) \
+                                                      else None          )
                 else:
                     # Remove (if present) from set \"n_y_s\" the nodes on the
                     # intersection between an edge on the boundary and an edge
@@ -1035,41 +1017,35 @@ class Laplacian(BaseClass2D.BaseClass2D):
                         o_count += 9 # For the neighbours of node.
             # New set with elements in \"n_y_s\" but not in \"n_t_n_s\". 
             n_y_s = n_y_s.difference(n_t_n_s)
-            if (mapping):
-                for node in n_t_n_s:
-                    if not is_background:
-                        o_count += 9
-                # Nodes' loop.
-                for node in n_y_s:
-                    neighs, ghosts = ([] for i in range(0, 2))
-                    (d_count, 
-                     o_count, 
-                     s_i) = self.check_neighbour(2                            ,
-                                                 node                         ,
-                                                 neighs                       ,
-                                                 ghosts                       ,
-                                                 octant                       ,
-                                                 o_count                      ,
-                                                 d_count                      ,
-                                                 s_i                          ,
-                                                 p_bound                      ,
-                                                 h                            ,
-                                                 key if is_penalized else None,
-                                                 octree                       ,
-                                                 is_penalized                 ,
-                                                 is_background                ,
-                                                 n_polygon if (mapping and    \
-                                                               is_background) \
-                                                 else None                    ,
-                                                 logger                       ,
-                                                 log_file)
-            if not is_penalized:
+            for node in n_t_n_s:
+                if not is_background:
+                    o_count += 9
+            # Nodes' loop.
+            for node in n_y_s:
+                neighs, ghosts = ([] for i in range(0, 2))
+                (d_count, 
+                 o_count, 
+                 s_i) = check_neighbour(2                            ,
+                                        node                         ,
+                                        neighs                       ,
+                                        ghosts                       ,
+                                        octant                       ,
+                                        o_count                      ,
+                                        d_count                      ,
+                                        s_i                          ,
+                                        h                            ,
+                                        key if is_penalized else None,
+                                        octree                       ,
+                                        is_penalized                 ,
+                                        is_background                ,
+                                        n_polygon if (is_background) \
+                                                  else None          )
+            if (not is_penalized):
                 d_nnz.append(d_count)
                 o_nnz.append(o_count)
                 self._centers_not_penalized.append(center)
 
         self.new_spread_new_background_numeration(is_background)
-        #self.spread_new_background_numeration(is_background)
 
         msg = "Created mask"
         self.log_msg(msg   ,
