@@ -1173,8 +1173,7 @@ class Laplacian(BaseClass2D.BaseClass2D):
     # --------------------------------------------------------------------------
     # Initialize diagonal matrices of the block matrix.
     def init_mat(self              ,
-                 (e_d_nnz, e_o_nnz),
-                 o_n_oct = 0):
+                 (e_d_nnz, e_o_nnz)):
         """Method which initialize the diagonal parts of the monolithic matrix 
            of the system.
            
@@ -1190,26 +1189,22 @@ class Laplacian(BaseClass2D.BaseClass2D):
         rank_w = self._rank_w
         octree = self._octree
         tot_oct = self._tot_oct
-        is_background = True
+        is_background = False if (grid) else True
         # Range deplacement.
         h = self._h
         h2 = h * h
-        overlap = o_n_oct * h
-        p_bound = []
         oct_offset = 0
-        if grid:
-            for i in range(0, grid):
-                oct_offset += self._oct_f_g[i]
-            is_background = False
-        else:
-            p_bound = self.apply_overlap(overlap)
+        t_foregrounds = self._t_foregrounds
+        for i in xrange(0, grid):
+            oct_offset += self._oct_f_g[i]
 
         (d_nnz, o_nnz) = (e_d_nnz, e_o_nnz)
         n_oct = self._n_oct
         nfaces = octree.get_n_faces()
-        nnodes = octree.get_n_nodes()
         face_node = octree.get_face_node()
+        #TODO: check function. 
         sizes = self.find_sizes()
+
         self._b_mat = PETSc.Mat().createAIJ(size = (sizes, sizes),
                                             nnz = (d_nnz, o_nnz) ,
                                             comm = comm_w)
@@ -1217,122 +1212,102 @@ class Laplacian(BaseClass2D.BaseClass2D):
         # the program will stop.
         self._b_mat.setOption(self._b_mat.Option.NEW_NONZERO_ALLOCATION_ERR, 
                               True)
-        
+        #TODO: check function. 
         o_ranges = self.get_ranges()
+
         dimension = self._dim
-        mapping = self._mapping
-        if (mapping):
-            # Current transformation adjoint matrix's dictionary.
-            c_t_a_dict = self.get_trans_adj(grid) 
-            # \"adj_matrix[0][0]\"...
-            A00 = c_t_a_dict[0][0]
-            # ...and so on.
-            A10 = c_t_a_dict[1][0]
-            A01 = c_t_a_dict[0][1]
-            A11 = c_t_a_dict[1][1]
-            # \"adj_matrix[0][0]\"^2...
-            A002 = A00 * A00
-            # ...and so on.
-            A102 = A10 * A10
-            A012 = A01 * A01
-            A112 = A11 * A11
-            # TODO: add coefficients^2 for 3D.
-            if (dimension == 3):
-                pass
+        # Current transformation matrix's dictionary.
+        c_t_dict = self.get_trans(grid)
+        # Current transformation adjoint matrix's dictionary.
+        c_t_a_dict = self.get_trans_adj(grid) 
+        
+        # Code hoisting.
+        mask_octant = self.mask_octant
+        get_octant = octree.get_octant
+        get_center = octree.get_center
+        get_corners_from_center = utilities.get_corners_from_center
+        apply_persp_trans = utilities.apply_persp_trans
+        is_point_inside_polygons = utilities.is_point_inside_polygons
+        h_c_w_first = utilities.h_c_w_first
+        metric_coefficients = utilities.metric_coefficients
+        square = numpy.square
+        check_neighbour = self.check_neighbour
 
         for octant in xrange(0, n_oct):
             indices, values = ([] for i in range(0, 2)) # Indices/values
             neighs, ghosts = ([] for i in range(0, 2))
             g_octant = o_ranges[0] + octant
             # Masked global octant.
-            m_g_octant = self.mask_octant(g_octant)
-            py_oct = octree.get_octant(octant)
-            center = octree.get_center(octant)[: dimension]
+            m_g_octant = mask_octant(g_octant)
+            py_oct = get_octant(octant)
+            center = get_center(octant)[: dimension]
             # Check to know if an octant on the background is penalized.
             is_penalized = False
             # Background grid.
-            if is_background:
-                if (mapping):
-                    threshold = 0.0
-                    t_foregrounds = self._t_foregrounds
-                    # Current transformation matrix's dictionary.
-                    c_t_dict = self.get_trans(0)
-                    oct_corners = utilities.get_corners_from_center(center,
-                                                                    h)
-                    n_oct_corners = len(oct_corners)
-                    for i, corner in enumerate(oct_corners):
-                        is_corner_penalized = False
-                        corner = utilities.apply_persp_trans(dimension, 
-                                                             corner   , 
-                                                             c_t_dict ,
-                                                             logger   ,  
-                                                             log_file)[: dimension]
-                        (is_corner_penalized,
-                         n_polygon) = utilities.is_point_inside_polygons(corner       ,
-                                                                         t_foregrounds,
-                                                                         logger       ,
-                                                                         log_file     ,
-                                                                         threshold)
-                        if (not is_corner_penalized):
-                            break
-                        else:
-                            if (i == (n_oct_corners - 1)):
-                                is_penalized = True
-                else:
-                    is_penalized = utilities.check_oct_into_squares(center ,
-                                                  	            p_bound,
-                                                                    h      ,
-                                                                    0.0    ,
-                                                  	            logger ,
-                                                  	            log_file)
-            if not is_penalized:
+            if (is_background):
+                is_penalized = True
+                threshold = 0.0
+                oct_corners = get_corners_from_center(center, h)
+                for i, corner in enumerate(oct_corners):
+                    is_corner_penalized = False
+                    corner = apply_persp_trans(dimension, 
+                                               corner   , 
+                                               c_t_dict ,
+                                               logger   ,  
+                                               log_file)[: dimension]
+                    (is_corner_penalized,
+                     n_polygon) = is_point_inside_polygons(corner       ,
+                                                           t_foregrounds,
+                                                           logger       ,
+                                                           log_file     ,
+                                                           threshold)
+                    if (not is_corner_penalized):
+                        is_penalized = False
+                        break
+
+            if (not is_penalized):
                 indices.append(m_g_octant)
-                if (not mapping):
-                    # Temporary multiplier.
-                    t_m = -4.0
-                else:
-                    # Current transformation matrix's dictionary.
-                    c_t_dict = self.get_trans(grid)
-                    t_center = utilities.apply_persp_trans(dimension, 
-                                                           center   , 
-                                                           c_t_dict ,
-                                                           logger   ,  
-                                                           log_file)[: dimension]
-                    w_first = utilities.h_c_w_first(dimension ,
-                                                    # Doing a list of just one
-                                                    # list, to use numpy. For
-                                                    # example, with dimension 2
-                                                    #\"[center]\" will be 
-                                                    # \"[[x, y]]\".
-                                                    [t_center],
-                                                    c_t_a_dict,
-                                                    logger    ,
-                                                    log_file)
-                    i_metric_coefficients = utilities.metric_coefficients(dimension,
-                                                                          [t_center],
-                                                                          c_t_a_dict,
-                                                                          logger,
-                                                                          log_file)
-                    #print(i_metric_coefficients)
-                    w_first = 1.0
-                    A00 = i_metric_coefficients[0] 
-                    A10 = i_metric_coefficients[1]
-                    A01 = i_metric_coefficients[2]
-                    A11 = i_metric_coefficients[3]
-                    ds2_epsilon_x = i_metric_coefficients[4]
-                    ds2_epsilon_y = i_metric_coefficients[5]
-                    ds2_nu_x = i_metric_coefficients[6]
-                    ds2_nu_y = i_metric_coefficients[7]
-                    A002 = numpy.square(A00)
-                    A102 = numpy.square(A10)
-                    A012 = numpy.square(A01)
-                    A112 = numpy.square(A11)
-                    ds2_epsilon_x = i_metric_coefficients[4]
-                    ds2_epsilon_y = i_metric_coefficients[5]
-                    ds2_nu_x = i_metric_coefficients[6]
-                    ds2_nu_y = i_metric_coefficients[7]
-                    w_first2 = w_first * w_first
-                    t_m = (-2.0) * w_first2 * ((A002 + A102) + (A012 + A112))
+                t_center = apply_persp_trans(dimension, 
+                                             center   , 
+                                             c_t_dict ,
+                                             logger   ,  
+                                             log_file)[: dimension]
+                #w_first = h_c_w_first(dimension ,
+                #                      # Doing a list of just one
+                #                      # list, to use numpy. For
+                #                      # example, with dimension 2
+                #                      #\"[center]\" will be 
+                #                      # \"[[x, y]]\".
+                #                      [t_center],
+                #                      c_t_a_dict,
+                #                      logger    ,
+                #                      log_file)
+                i_metric_coefficients = metric_coefficients(dimension,
+                                                            [t_center],
+                                                            c_t_a_dict,
+                                                            logger,
+                                                            log_file)
+                # TODO: why this w_first = 1.0? Because it is yet evaluated into
+                #       the coefficients \"i_metric_coefficients\"
+                w_first = 1.0
+                A00 = i_metric_coefficients[0] 
+                A10 = i_metric_coefficients[1]
+                A01 = i_metric_coefficients[2]
+                A11 = i_metric_coefficients[3]
+                ds2_epsilon_x = i_metric_coefficients[4]
+                ds2_epsilon_y = i_metric_coefficients[5]
+                ds2_nu_x = i_metric_coefficients[6]
+                ds2_nu_y = i_metric_coefficients[7]
+                A002 = square(A00)
+                A102 = square(A10)
+                A012 = square(A01)
+                A112 = square(A11)
+                ds2_epsilon_x = i_metric_coefficients[4]
+                ds2_epsilon_y = i_metric_coefficients[5]
+                ds2_nu_x = i_metric_coefficients[6]
+                ds2_nu_y = i_metric_coefficients[7]
+                w_first2 = w_first * w_first
+                t_m = (-2.0) * w_first2 * ((A002 + A102) + (A012 + A112))
                 value_to_append = t_m / h2
                 values.append(value_to_append)
                 # Nodes yet seen.
@@ -1346,86 +1321,72 @@ class Laplacian(BaseClass2D.BaseClass2D):
                         
                         (m_index       , 
                          is_n_penalized,
-                         n_center) = self.check_neighbour(1                               ,
-                                                          face                            ,
-                                                          neighs                          ,
-                                                          ghosts                          ,
-                                                          octant                          ,
-                                                          oct_offset                      ,
-                                                          o_ranges                        ,
-                                                          0                               ,
-                                                          h                               ,
-                                                          None                            ,
-                                                          octree                          ,
-                                                          is_penalized                    ,
-                                                          is_background                   ,
-                                                          n_polygon if (mapping           \
-                                                                        and is_background)\
-                                                          else None                       ,
-                                                          yet_masked = True)
+                         n_center) = check_neighbour(1                         ,
+                                                     face                      ,
+                                                     neighs                    ,
+                                                     ghosts                    ,
+                                                     octant                    ,
+                                                     oct_offset                ,
+                                                     o_ranges                  ,
+                                                     0                         ,
+                                                     h                         ,
+                                                     None                      ,
+                                                     octree                    ,
+                                                     is_penalized              ,
+                                                     is_background             ,
+                                                     n_polygon if is_background\
+                                                               else None       ,
+                                                     yet_masked = True)
                         if not is_n_penalized:
                             indices.append(m_index)
-                            if (not mapping):
-                                t_m = 1.0
-                            else:
-                                t_m = (A002 + A102) if ((face == 0) or \
-                                                        (face == 1)) else \
-                                      (A012 + A112)
-                                t_m = (1.0 * w_first2) * t_m
-                                if (face == 0):
-                                    t_m = t_m - (0.5*h*(ds2_epsilon_x + ds2_epsilon_y))
-                                elif (face == 1):   
-                                    t_m = t_m + (0.5*h*(ds2_epsilon_x + ds2_epsilon_y))
-                                elif (face == 2):
-                                    t_m = t_m - (0.5*h*(ds2_nu_x + ds2_nu_y))
-                                elif (face == 3):
-                                    t_m = t_m + (0.5*h*(ds2_nu_x + ds2_nu_y))
+                            t_m = (A002 + A102) if ((face == 0) or \
+                                                    (face == 1)) else \
+                                  (A012 + A112)
+                            t_m = (1.0 * w_first2) * t_m
+                            if (face == 0):
+                                t_m = t_m - (0.5*h*(ds2_epsilon_x + ds2_epsilon_y))
+                            elif (face == 1):   
+                                t_m = t_m + (0.5*h*(ds2_epsilon_x + ds2_epsilon_y))
+                            elif (face == 2):
+                                t_m = t_m - (0.5*h*(ds2_nu_x + ds2_nu_y))
+                            elif (face == 3):
+                                t_m = t_m + (0.5*h*(ds2_nu_x + ds2_nu_y))
                             value_to_append = t_m / h2
                             values.append(value_to_append)
                     else:
                         # Removing nodes being on the boundaries. They will not
                         # be counted in the stencil.
-                        b_ns =  face_node[face][0 : 2]
+                        b_ns = face_node[face][0 : 2]
                         n_t_n_s.update(b_ns)
                 # New set with elements in \"n_y_s\" but not in \"n_t_n_s\". 
                 n_y_s = n_y_s.difference(n_t_n_s)
-                if (mapping):
-                    for node in n_y_s:
-                        (m_index       , 
-                         is_n_penalized,
-                         n_center) = self.check_neighbour(2               ,
-                                                          node            ,
-                                                          neighs          ,
-                                                          ghosts          ,
-                                                          octant          ,
-                                                          oct_offset      ,
-                                                          o_ranges        ,
-                                                          0               ,
-                                                          h               ,
-                                                          None            ,
-                                                          octree          ,
-                                                          is_penalized    ,
-                                                          is_background   ,
-                                                          n_polygon if    \
-                                                          (mapping and    \
-                                                           is_background) \
-                                                          else None       ,
-                                                          yet_masked = True)
-                        if not is_n_penalized:
-                            indices.append(m_index)
-                            t_m = w_first2 * ((A00 * A01) + (A10 * A11))
-                            t_m = (t_m * 0.5) if ((node == 0) or (node == 3)) \
-                                              else (t_m * (-0.5))
-                            value_to_append = (1.0 / h2) * t_m
-                            values.append(value_to_append)
+                for node in n_y_s:
+                    (m_index       , 
+                     is_n_penalized,
+                     n_center) = check_neighbour(2                         ,
+                                                 node                      ,
+                                                 neighs                    ,
+                                                 ghosts                    ,
+                                                 octant                    ,
+                                                 oct_offset                ,
+                                                 o_ranges                  ,
+                                                 0                         ,
+                                                 h                         ,
+                                                 None                      ,
+                                                 octree                    ,
+                                                 is_penalized              ,
+                                                 is_background             ,
+                                                 n_polygon if is_background\
+                                                           else None       ,
+                                                 yet_masked = True)
+                    if not is_n_penalized:
+                        indices.append(m_index)
+                        t_m = w_first2 * ((A00 * A01) + (A10 * A11))
+                        t_m = (t_m * 0.5) if ((node == 0) or (node == 3)) \
+                                          else (t_m * (-0.5))
+                        value_to_append = (1.0 / h2) * t_m
+                        values.append(value_to_append)
 
-                #if not is_background:
-                #    for i,v in enumerate(values):
-                #        if i == 0:
-                #            values[i] = 1.0
-                #        else:
-                #            values[i] = 0.0
-                
                 self._b_mat.setValues(m_g_octant, # Row
                                       indices   , # Columns
                                       values)     # Values to be inserted
