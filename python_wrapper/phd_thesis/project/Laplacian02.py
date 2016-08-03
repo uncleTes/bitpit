@@ -753,7 +753,6 @@ class Laplacian(BaseClass2D.BaseClass2D):
                         d_count      ,
                         # Stencil's index.
                         s_i          ,
-                        p_bound      ,
                         h            ,
                         key          ,
                         octree       ,
@@ -761,11 +760,15 @@ class Laplacian(BaseClass2D.BaseClass2D):
                         is_background,
                         # Number of polygon to which the neigbour became to.
                         n_polygon_n  ,
-                        logger       ,
-                        log_file     ,
                         yet_masked = False):
+        logger = self.logger
+        log_file = logger.handlers[0].baseFilename
         dimension = self._dim
-        mapping = self._mapping
+
+        # Code hoisting.
+        apply_persp_trans = utilities.apply_persp_trans
+        is_point_inside_polygons = utilities.is_point_inside_polygons
+
         if (yet_masked):
             oct_offset = o_count
             o_ranges = d_count
@@ -801,39 +804,29 @@ class Laplacian(BaseClass2D.BaseClass2D):
                 m_index = self.mask_octant(index)
                 m_index = m_index + oct_offset
         if is_background:
-            if (mapping):
-                is_n_penalized = True
-                threshold = 0.0
-                t_foregrounds = self._t_foregrounds
-                # Current transformation matrix's dictionary.
-                c_t_dict = self.get_trans(0)
-                oct_corners = utilities.get_corners_from_center(n_center,
-                                                                h)
-                n_oct_corners = 4 if (dimension == 2) else 8
-                for i, corner in enumerate(oct_corners):
-                    is_corner_penalized = False
-                    corner = utilities.apply_persp_trans(dimension, 
-                                                         corner   , 
-                                                         c_t_dict ,
-                                                         logger   ,  
-                                                         log_file)[: dimension]
-                    (is_corner_penalized,
-                     n_polygon) = utilities.is_point_inside_polygons(corner       ,
-                                                                     t_foregrounds,
-                                                                     logger       ,
-                                                                     log_file     ,
-                                                                     threshold)
-                    if (not is_corner_penalized):
-                        is_n_penalized = False
-                        break
-            else:
-                # Is neighbour penalized.
-                is_n_penalized = utilities.check_oct_into_squares(n_center,
-                                              	                  p_bound ,
-                                                                  h       ,
-                                                                  0.0     ,
-                                          	                  logger  ,
-                                         	                  log_file)
+            is_n_penalized = True
+            threshold = 0.0
+            t_foregrounds = self._t_foregrounds
+            # Current transformation matrix's dictionary.
+            c_t_dict = self.get_trans(0)
+            oct_corners = utilities.get_corners_from_center(n_center,
+                                                            h)
+            for i, corner in enumerate(oct_corners):
+                is_corner_penalized = False
+                corner = apply_persp_trans(dimension, 
+                                           corner   , 
+                                           c_t_dict ,
+                                           logger   ,  
+                                           log_file)[: dimension]
+                (is_corner_penalized,
+                 n_polygon) = is_point_inside_polygons(corner       ,
+                                                       t_foregrounds,
+                                                       logger       ,
+                                                       log_file     ,
+                                                       threshold)
+                if (not is_corner_penalized):
+                    is_n_penalized = False
+                    break
         if (not yet_masked):
             if not is_penalized:
                 if is_n_penalized:
