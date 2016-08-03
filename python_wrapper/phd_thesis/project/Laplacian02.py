@@ -1354,7 +1354,6 @@ class Laplacian(BaseClass2D.BaseClass2D):
                                                           oct_offset                      ,
                                                           o_ranges                        ,
                                                           0                               ,
-                                                          p_bound                         ,
                                                           h                               ,
                                                           None                            ,
                                                           octree                          ,
@@ -1363,8 +1362,6 @@ class Laplacian(BaseClass2D.BaseClass2D):
                                                           n_polygon if (mapping           \
                                                                         and is_background)\
                                                           else None                       ,
-                                                          logger                          ,
-                                                          log_file                        ,
                                                           yet_masked = True)
                         if not is_n_penalized:
                             indices.append(m_index)
@@ -1404,7 +1401,6 @@ class Laplacian(BaseClass2D.BaseClass2D):
                                                           oct_offset      ,
                                                           o_ranges        ,
                                                           0               ,
-                                                          p_bound         ,
                                                           h               ,
                                                           None            ,
                                                           octree          ,
@@ -1414,8 +1410,6 @@ class Laplacian(BaseClass2D.BaseClass2D):
                                                           (mapping and    \
                                                            is_background) \
                                                           else None       ,
-                                                          logger          ,
-                                                          log_file        ,
                                                           yet_masked = True)
                         if not is_n_penalized:
                             indices.append(m_index)
