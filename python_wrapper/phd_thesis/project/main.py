@@ -408,7 +408,7 @@ def compute(comm_dictionary     ,
         t_coeffs_adj = trans_adj_dictionary[proc_grid]
         laplacian.init_trans_dict(trans_dictionary)
         laplacian.init_trans_adj_dict(trans_adj_dictionary)
-    (d_nnz, o_nnz) = laplacian.create_mask(o_n_oct = 0)
+    (d_nnz, o_nnz) = laplacian.create_mask()
     laplacian.init_sol()
 
     laplacian.init_mat((d_nnz, o_nnz), 
