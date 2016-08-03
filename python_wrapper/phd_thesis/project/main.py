@@ -411,8 +411,7 @@ def compute(comm_dictionary     ,
     (d_nnz, o_nnz) = laplacian.create_mask()
     laplacian.init_sol()
 
-    laplacian.init_mat((d_nnz, o_nnz), 
-                       o_n_oct = 0)
+    laplacian.init_mat((d_nnz, o_nnz))
     not_penalized_centers = laplacian.not_pen_centers
     # Physical centers.
     if mapping:
