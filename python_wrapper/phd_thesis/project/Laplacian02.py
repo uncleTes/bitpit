@@ -1783,20 +1783,24 @@ class Laplacian(BaseClass2D.BaseClass2D):
         logger = self.logger 
         octree = self._octree
         comm_l = self._comm
-        time_rest_prol = 0
         dimension = self._dim
-        mapping = self._mapping
         proc_grid = self._proc_g
-        if (mapping):
-            # Background transformation matrix adjoint's dictionary.
-            b_t_adj_dict = self.get_trans_adj(0)
+        # Background transformation matrix adjoint's dictionary.
+        b_t_adj_dict = self.get_trans_adj(0)
+        # Background transformation matrix dictionary.
+        b_t_dict = self.get_trans(0)
+        # Current transformation matrix adjoint's dictionary.
+        c_t_adj_dict = self.get_trans_adj(proc_grid)
 
-        start = time.time()
+        #start = time.time()
         list_edg = list(self._n_edg)
-        if self._p_inter:
-            list_edg = [list_edg[i] for i in range(0, len(list_edg)) if
-                        int(list_edg[i][0].item(0)) == 0]
         # Length list edg.
+        l_l_edg = len(list_edg)
+        p_inter = self._p_inter
+        if (p_inter):
+            list_edg = [list_edg[i] for i in xrange(0, l_l_edg) if
+                        int(list_edg[i][0].item(0)) == 0]
+        # Length list edg (new).
         l_l_edg = len(list_edg)
         # Length key.
         l_k = list_edg[0][0].size
@@ -1811,38 +1815,31 @@ class Laplacian(BaseClass2D.BaseClass2D):
                                 range(0, l_l_edg)]).reshape(l_l_edg, l_s)
         centers = [(stencils[i][1], stencils[i][2], 0) for i in range(0, l_l_edg)]
         n_centers = len(centers)
-        if (mapping):
-            t_centers = [None] * n_centers
-            # \"adj_matrix[0][0]\"...
-            A00 = b_t_adj_dict[0][0]
-            # ...and so on.
-            A10 = b_t_adj_dict[1][0]
-            A01 = b_t_adj_dict[0][1]
-            A11 = b_t_adj_dict[1][1]
-            # \"adj_matrix[0][0]\"^2...
-            A002 = A00 * A00
-            # ...and so on.
-            A102 = A10 * A10
-            A012 = A01 * A01
-            A112 = A11 * A11
-            # TODO: add coefficients^2 for 3D.
-            if (dimension == 3):
-                pass
-            
-            b_t_dict = self.get_trans(0)
-            for i in xrange(0, n_centers):
-                    centers[i] = utilities.apply_persp_trans(dimension , 
-                                                             centers[i], 
-                                                             b_t_dict ,
-                                                             logger   ,  
-                                                             log_file)[: dimension]
-                    t_centers[i] = centers[i]
-                    c_t_adj_dict = self.get_trans_adj(proc_grid)
-                    centers[i] = utilities.apply_persp_trans_inv(dimension   ,
-                                                                 centers[i]  ,
-                                                                 c_t_adj_dict,
-                                                                 logger      ,
-                                                                 log_file)[: dimension]
+        t_centers = [None] * n_centers
+
+        # Code hoisting.
+        apply_persp_trans = utilities.apply_persp_trans
+        apply_persp_trans_inv = utilities.apply_persp_trans_inv
+        find_right_neighbours = self.find_right_neighbours
+        least_squares = utilities.least_squares
+        metric_coefficients = utilities.metric_coefficients
+        apply_rest_prol_ops = self.apply_rest_prol_ops
+
+        # Lambda function.
+        f_r_n = lambda x : find_right_neighbours(x, o_ranges[0])
+        
+        for i in xrange(0, n_centers):
+                centers[i] = apply_persp_trans(dimension , 
+                                               centers[i], 
+                                               b_t_dict  ,
+                                               logger    ,  
+                                               log_file)[: dimension]
+                t_centers[i] = centers[i]
+                centers[i] = apply_persp_trans_inv(dimension   ,
+                                                   centers[i]  ,
+                                                   c_t_adj_dict,
+                                                   logger      ,
+                                                   log_file)[: dimension]
         # Vectorized functions are just syntactic sugar:
         # http://stackoverflow.com/questions/7701429/efficient-evaluation-of-a-function-at-every-cell-of-a-numpy-array
         # http://stackoverflow.com/questions/8079061/function-application-over-numpys-matrix-row-column
@@ -1866,111 +1863,77 @@ class Laplacian(BaseClass2D.BaseClass2D):
         for idx in idxs[0]:
             neigh_centers, neigh_indices = ([] for i in range(0, 2)) 
             (neigh_centers, 
-             neigh_indices)  = self.find_right_neighbours(local_idxs[idx],
-                                                          o_ranges[0])
-            coeffs = utilities.least_squares(neigh_centers,
-                                             centers[idx])
-            #coeffs = [1.0]
+             neigh_indices)  = f_r_n(local_idxs[idx])
+            coeffs = least_squares(neigh_centers,
+                                   centers[idx])
+            h2 = h2s[idx]
+            h = numpy.sqrt(h2)
+            h2_inv = 1.0 / h2
+            h_half = 0.5 * h
 
-            if (mapping):
-                # Checkout how the \"stencil\" is created in the function
-                # \"create_mask\".
-                for i in xrange(6, len(stencils[idx]), 5):
-                    b_codim = int(stencils[idx][i])
-                    f_o_n = int(stencils[idx][i + 1])
-                    x_s = t_centers[idx][0]
-                    y_s = t_centers[idx][1]
-                    #coeffs = []
-                    #coeff = ExactSolution2D.ExactSolution2D.solution(x_s , 
-                    #                               		     y_s ,
-                    #                                                 None,
-                    #                                                 None,
-                    #                                                 False)
-                    #coeffs.append(coeff)
+            # Checkout how the \"stencil\" is created in the function
+            # \"create_mask\".
+            for i in xrange(6, len(stencils[idx]), 5):
+                b_codim = int(stencils[idx][i])
+                index = int(stencils[idx][i + 1])
+                x_s = t_centers[idx][0]
+                y_s = t_centers[idx][1]
 
-                    row_index = int(stencils[idx][i - 3])
-                    h2 = h2s[idx]
-                    n_center = [stencils[idx][i - 2], stencils[idx][i - 1]]
-                    t_n_center = utilities.apply_persp_trans(dimension, 
-                                                             n_center , 
-                                                             b_t_dict ,
-                                                             logger   ,  
-                                                             log_file)[: dimension]
+                row_index = int(stencils[idx][i - 3])
+                n_center = [stencils[idx][i - 2], stencils[idx][i - 1]]
+                t_n_center = apply_persp_trans(dimension, 
+                                               n_center , 
+                                               b_t_dict ,
+                                               logger   ,  
+                                               log_file)[: dimension]
 
-                    # Numpy ws'.
-                    n_ws_first = utilities.h_c_w_first(dimension   ,
-                                                       [t_n_center],
-                                                       b_t_adj_dict,
-                                                       logger      ,
-                                                       log_file)
-                    i_metric_coefficients = utilities.metric_coefficients(dimension,
-                                                                          [t_n_center],
-                                                                          b_t_adj_dict,
-                                                                          logger,
-                                                                          log_file)
-                    w_first2 = n_ws_first * n_ws_first
-                    w_first = 1.0
-                    w_first2 = w_first * w_first
-                    h = numpy.sqrt(h2)
-                    A00 = i_metric_coefficients[0] 
-                    A10 = i_metric_coefficients[1]
-                    A01 = i_metric_coefficients[2]
-                    A11 = i_metric_coefficients[3]
-                    ds2_epsilon_x = i_metric_coefficients[4]
-                    ds2_epsilon_y = i_metric_coefficients[5]
-                    ds2_nu_x = i_metric_coefficients[6]
-                    ds2_nu_y = i_metric_coefficients[7]
-                    A002 = numpy.square(A00)
-                    A102 = numpy.square(A10)
-                    A012 = numpy.square(A01)
-                    A112 = numpy.square(A11)
-                    if (b_codim == 1):
-                        t_m = (A002 + A102) if ((f_o_n == 0) or (f_o_n == 1)) \
-                                            else (A012 + A112)
-                        # IMPORTANT
-                        # Note that here the signs MUST be opposite respect to the same part
-                        # into "set_b_c" and "update_bg_grids" functions, because they have to
-                        # be considered as stencil of the neighbours, and so with opposite face.
-                        if (f_o_n == 0):
-                            t_m = t_m + (0.5*h*(ds2_epsilon_x + ds2_epsilon_y))
-                        elif (f_o_n == 1):   
-                            t_m = t_m - (0.5*h*(ds2_epsilon_x + ds2_epsilon_y))
-                        elif (f_o_n == 2):
-                            t_m = t_m + (0.5*h*(ds2_nu_x + ds2_nu_y))
-                        elif (f_o_n == 3):
-                            t_m = t_m - (0.5*h*(ds2_nu_x + ds2_nu_y))
-                        t_m = (1.0 * w_first2) * t_m
-                        value_to_multiply = t_m / h2
-                    elif (b_codim == 2):
-                        t_m = w_first2 * ((A00 * A01) + (A10 * A11))
-                        t_m = (t_m * 0.5) if ((f_o_n == 0) or (f_o_n == 3)) \
-                                          else (t_m * (-0.5))
-                        value_to_multiply = (1.0 / h2) * t_m
-                    elif (b_codim ==  -1):
-                        break
-                    #new_coeffs = [(-1.0 * coeff) * value_to_multiply for coeff in \
-                    #              coeffs]
-                    new_coeffs = [coeff * value_to_multiply for coeff in \
-                                  coeffs]
-                    #insert_mode = PETSc.InsertMode.ADD_VALUES
-                    #self._rhs.setValues(row_index,
-                    #                    new_coeffs,
-                    #                    insert_mode)
-                    self.apply_rest_prol_ops(row_index     ,
-                                             neigh_indices ,
-                                             new_coeffs,
-                                             neigh_centers)
-            else:
-                coeffs = [coeff * (1.0 / h2s[idx]) for coeff in coeffs]
+                i_metric_coefficients = metric_coefficients(dimension   ,
+                                                            [t_n_center],
+                                                            b_t_adj_dict,
+                                                            logger      ,
+                                                            log_file)
+                A00 = i_metric_coefficients[0] 
+                A10 = i_metric_coefficients[1]
+                A01 = i_metric_coefficients[2]
+                A11 = i_metric_coefficients[3]
+                ds2_epsilon_x = i_metric_coefficients[4]
+                ds2_epsilon_y = i_metric_coefficients[5]
+                ds2_nu_x = i_metric_coefficients[6]
+                ds2_nu_y = i_metric_coefficients[7]
+                A002 = numpy.square(A00)
+                A102 = numpy.square(A10)
+                A012 = numpy.square(A01)
+                A112 = numpy.square(A11)
+                if (b_codim == 1):
+                    # Temporary multiplier.
+                    t_m = (A002 + A102) if (index < 2) else (A012 + A112)
+                    # Temporary multiplier 02.
+                    t_m02 = (ds2_epsilon_x + ds2_epsilon_y) if \
+                            (index < 2) else (ds2_nu_x + ds2_nu_y)
+                    t_m02 *= h_half
+                    # IMPORTANT
+                    # Note that here the signs MUST be opposite respect to the same part
+                    # into "set_b_c" and "update_bg_grids" functions, because they have to
+                    # be considered as stencil of the neighbours, and so with opposite face.
+                    t_m += t_m02 if ((index % 2) == 0) else \
+                           (-1.0 * t_m02)   
+                    value_to_multiply = h2_inv * t_m
+                elif (b_codim == 2):
+                    t_m = (A00 * A01) + (A10 * A11)
+                    t_m *= 0.5 if ((index == 0) or (index == 3)) \
+                               else -0.5
+                    value_to_multiply = h2_inv * t_m
+                elif (b_codim ==  -1):
+                    break
+                new_coeffs = [coeff * value_to_multiply for coeff in \
+                              coeffs]
+                apply_rest_prol_ops(row_index     ,
+                                    neigh_indices ,
+                                    new_coeffs,
+                                    neigh_centers)
 
-                row_indices = [int(octant) for octant in stencils[idx][3 :: 5]]
-
-                self.apply_rest_prol_ops(row_indices  ,
-                                         neigh_indices,
-                                         coeffs       ,
-                                         neigh_centers)
-        end = time.time()
-        print("fg update " + str(end - start))
+        #end = time.time()
+        #print("fg update " + str(end - start))
 
         msg = "Updated prolongation blocks"
         self.log_msg(msg   ,
@@ -1999,10 +1962,10 @@ class Laplacian(BaseClass2D.BaseClass2D):
         dimension = self._dim
         mapping = self._mapping
         proc_grid = self._proc_g
-        if (mapping):
-            c_t_adj_dict = self.get_trans_adj(proc_grid)
+        # Current transformation matrix adjoint's dictionary.
+        c_t_adj_dict = self.get_trans_adj(proc_grid)
 
-        start = time.time()
+        #start = time.time()
         list_edg = list(self._n_edg)
         # Length list edg.
         l_l_edg = len(list_edg)
@@ -2011,7 +1974,7 @@ class Laplacian(BaseClass2D.BaseClass2D):
         # Length stencil.
         l_s = list_edg[0][1].size
         keys = numpy.array([list_edg[i][0] for i in 
-                            range(0, l_l_edg)]).reshape(l_l_edg, l_k)
+                            xrange(0, l_l_edg)]).reshape(l_l_edg, l_k)
         h2s = keys[:, 4] * keys[:, 4]
         # Outside centers.
         o_centers = numpy.array([list_edg[i][1][0][: dimension] for i in 
@@ -2022,23 +1985,30 @@ class Laplacian(BaseClass2D.BaseClass2D):
                                                                       dimension)
         # Number of outside centers.
         n_o_centers = o_centers.shape[0]
-        if (mapping):
-            t_o_centers = [None] * n_o_centers
-            for i in xrange(0, n_o_centers):
-                f_t_dict = self.get_trans(int(keys[i][0]))
-                t_o_centers[i] = utilities.apply_persp_trans(dimension   , 
-                                                             o_centers[i], 
-                                                             f_t_dict    ,
-                                                             logger      ,  
-                                                             log_file)
-                t_o_centers[i] = utilities.apply_persp_trans_inv(dimension     , 
-                                                                 t_o_centers[i], 
-                                                                 c_t_adj_dict  ,
-                                                                 logger        ,  
-                                                                 log_file)
-        else:
-            # No mapping, no transformation.
-            t_o_centers = o_centers
+        t_o_centers = [None] * n_o_centers
+        
+        # Code hoisting.
+        apply_persp_trans = utilities.apply_persp_trans
+        apply_persp_trans_inv = utilities.apply_persp_trans_inv
+        find_right_neighbours = self.find_right_neighbours
+        least_squares = utilities.least_squares
+        metric_coefficients = utilities.metric_coefficients
+        apply_rest_prol_ops = self.apply_rest_prol_ops
+        get_trans_adj = self.get_trans_adj
+        get_trans = self.get_trans
+
+        for i in xrange(0, n_o_centers):
+            f_t_dict = self.get_trans(int(keys[i][0]))
+            t_o_centers[i] = apply_persp_trans(dimension   , 
+                                               o_centers[i], 
+                                               f_t_dict    ,
+                                               logger      ,  
+                                               log_file)
+            t_o_centers[i] = apply_persp_trans_inv(dimension     , 
+                                                   t_o_centers[i], 
+                                                   c_t_adj_dict  ,
+                                                   logger        ,  
+                                                   log_file)
         #TODO: understand why here we need to pass \"center[0:2]\" to the 
         # function \"get_point_owner_dx\", while in the previous version of
         # PABLitO we passed all the array \"center\". I think that it is due to
@@ -2057,106 +2027,77 @@ class Laplacian(BaseClass2D.BaseClass2D):
                                               ids_octree_contained[1])))
         #print(str(self._comm_w.Get_rank()) + " " + str(len(idxs[0])))
         for idx in idxs[0]:
-            if (mapping):
-                # Foreground transformation matrix adjoint's dictionary.
-                f_t_adj_dict = self.get_trans_adj(int(keys[idx][0]))
-                f_t_dict = self.get_trans(int(keys[idx][0]))
-                t_i_center =  utilities.apply_persp_trans(dimension     , 
-                                                          i_centers[idx], 
-                                                          f_t_dict      ,
-                                                          logger        ,  
-                                                          log_file)[: dimension]
-                # Numpy ws'.
-                n_ws_first = utilities.h_c_w_first(dimension   ,
-                                                   [t_i_center],
-                                                   f_t_adj_dict,
-                                                   logger      ,
-                                                   log_file)
-                i_metric_coefficients = utilities.metric_coefficients(dimension,
-                                                                      [t_i_center],
-                                                                      f_t_adj_dict,
-                                                                      logger,
-                                                                      log_file)
-                # \"adj_matrix[0][0]\"...
-                A00 = f_t_adj_dict[0][0]
-                # ...and so on.
-                A10 = f_t_adj_dict[1][0]
-                A01 = f_t_adj_dict[0][1]
-                A11 = f_t_adj_dict[1][1]
-                # \"adj_matrix[0][0]\"^2...
-                A002 = A00 * A00
-                # ...and so on.
-                A102 = A10 * A10
-                A012 = A01 * A01
-                A112 = A11 * A11
-                # TODO: add coefficients^2 for 3D.
-                if (dimension == 3):
-                    pass
-                
+            # Foreground transformation matrix adjoint's dictionary.
+            f_t_adj_dict = get_trans_adj(int(keys[idx][0]))
+            f_t_dict = get_trans(int(keys[idx][0]))
+            t_i_center =  apply_persp_trans(dimension     , 
+                                            i_centers[idx], 
+                                            f_t_dict      ,
+                                            logger        ,  
+                                            log_file)[: dimension]
+
+            i_metric_coefficients = metric_coefficients(dimension,
+                                                        [t_i_center],
+                                                        f_t_adj_dict,
+                                                        logger,
+                                                        log_file)
+            
             neigh_centers, neigh_indices = ([] for i in range(0, 2)) 
             # New neighbour indices.
             n_n_i = []
             (neigh_centers, 
-             neigh_indices)  = self.find_right_neighbours(local_idxs[idx],
-                                                          o_ranges[0]    ,
-                                                          True)
-            coeffs = utilities.least_squares(neigh_centers,
-                                             t_o_centers[idx])
-            #coeffs = [1.0]
-            #for i, index in enumerate(neigh_indices):
-            #    if not isinstance(index, basestring):
-            #        masked_index = self._ngn[index]
-            #        n_n_i.append(masked_index)
-            #    else:
-            #        n_n_i.append(index)
+             neigh_indices)  = find_right_neighbours(local_idxs[idx],
+                                                     o_ranges[0]    ,
+                                                     True)
+            coeffs = least_squares(neigh_centers,
+                                   t_o_centers[idx])
+            
             n_n_i = neigh_indices
-            if (mapping):
-                b_codim = int(keys[idx][3])
-                f_o_n = int(keys[idx][2])
-                h2 = h2s[idx]
-                h = numpy.sqrt(h2)
-                w_first2 = n_ws_first * n_ws_first
-                w_first = 1.0
-                w_first2 = w_first * w_first
-                A00 = i_metric_coefficients[0] 
-                A10 = i_metric_coefficients[1]
-                A01 = i_metric_coefficients[2]
-                A11 = i_metric_coefficients[3]
-                ds2_epsilon_x = i_metric_coefficients[4]
-                ds2_epsilon_y = i_metric_coefficients[5]
-                ds2_nu_x = i_metric_coefficients[6]
-                ds2_nu_y = i_metric_coefficients[7]
-                A002 = numpy.square(A00)
-                A102 = numpy.square(A10)
-                A012 = numpy.square(A01)
-                A112 = numpy.square(A11)
-                if (b_codim == 1):
-                    t_m = (A002 + A102) if ((f_o_n == 0) or (f_o_n == 1)) \
-                                        else (A012 + A112)
-                    if (f_o_n == 0):
-                        t_m = t_m - (0.5*h*(ds2_epsilon_x + ds2_epsilon_y))
-                    elif (f_o_n == 1):   
-                        t_m = t_m + (0.5*h*(ds2_epsilon_x + ds2_epsilon_y))
-                    elif (f_o_n == 2):
-                        t_m = t_m - (0.5*h*(ds2_nu_x + ds2_nu_y))
-                    elif (f_o_n == 3):
-                        t_m = t_m + (0.5*h*(ds2_nu_x + ds2_nu_y))
-                    t_m = (1.0 * w_first2) * t_m
-                    value_to_multiply = t_m / h2
-                else:
-                    t_m = w_first2 * ((A00 * A01) + (A10 * A11))
-                    t_m = (t_m * 0.5) if ((f_o_n == 0) or (f_o_n == 3)) \
-                                      else (t_m * (-0.5))
-                    value_to_multiply = (1.0 / h2) * t_m
-                coeffs = [coeff * value_to_multiply for coeff in coeffs]
+
+            b_codim = int(keys[idx][3])
+            index = int(keys[idx][2])
+
+            h2 = h2s[idx]
+            h = numpy.sqrt(h2)
+            h2_inv = 1.0 / h2
+            h_half = 0.5 * h
+
+            A00 = i_metric_coefficients[0] 
+            A10 = i_metric_coefficients[1]
+            A01 = i_metric_coefficients[2]
+            A11 = i_metric_coefficients[3]
+            ds2_epsilon_x = i_metric_coefficients[4]
+            ds2_epsilon_y = i_metric_coefficients[5]
+            ds2_nu_x = i_metric_coefficients[6]
+            ds2_nu_y = i_metric_coefficients[7]
+            A002 = numpy.square(A00)
+            A102 = numpy.square(A10)
+            A012 = numpy.square(A01)
+            A112 = numpy.square(A11)
+            if (b_codim == 1):
+                # Temporary multiplier.
+                t_m = (A002 + A102) if (index < 2) else (A012 + A112)
+                # Temporary multiplier 02.
+                t_m02 = (ds2_epsilon_x + ds2_epsilon_y) if \
+                        (index < 2) else (ds2_nu_x + ds2_nu_y)
+                t_m02 *= h_half
+                t_m += t_m02 if ((index % 2) == 1) else \
+                       (-1.0 * t_m02)   
+
+                value_to_multiply = h2_inv * t_m
             else:
-                coeffs = [coeff * (1.0 / h2s[idx]) for coeff in coeffs]
-            self.apply_rest_prol_ops(int(keys[idx][1]),
-                                     n_n_i            ,
-                                     coeffs           ,
-                                     neigh_centers)
-        end = time.time()
-        print("bg update " + str(end - start))
+                t_m = (A00 * A01) + (A10 * A11)
+                t_m *= 0.5 if ((index == 0) or (index == 3)) \
+                           else -0.5
+                value_to_multiply = h2_inv * t_m
+
+            coeffs = [coeff * value_to_multiply for coeff in coeffs]
+            apply_rest_prol_ops(int(keys[idx][1]),
+                                n_n_i            ,
+                                coeffs           ,
+                                neigh_centers)
+        #end = time.time()
+        #print("bg update " + str(end - start))
 
         msg = "Updated restriction blocks"
         self.log_msg(msg   ,
