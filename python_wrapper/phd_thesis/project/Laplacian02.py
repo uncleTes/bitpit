@@ -445,122 +445,113 @@ class Laplacian(BaseClass2D.BaseClass2D):
     
 	log_file = self.logger.handlers[0].baseFilename
         logger = self.logger
-        penalization = self._pen
-        b_bound = self._b_bound
         grid = self._proc_g
         n_oct = self._n_oct
         octree = self._octree
         nfaces = octree.get_n_faces()
-        nnodes = octree.get_n_nodes()
         face_node = octree.get_face_node()
         h = self._h
+        h_half = 0.5 * h
         h2 = h * h
-        is_background = True
+        h2_inv_neg = -1.0 / h2
+        is_background = False if (grid) else True
         o_ranges = self.get_ranges()
         dimension = self._dim
-        mapping = self._mapping
-        if (mapping):
-            t_b_centers = []
-            # Current transformation matrix's dictionary.
-            c_t_dict = self.get_trans(grid)
-            # Background transformation matrix adjoint's dictionary.
-            b_t_adj_dict = self.get_trans_adj(0)
-            t_background = self._t_background
-
-        # If we are onto the grid \"0\", we are onto the background grid.
-        if grid:
-            is_background = False
+        t_b_centers = []
+        # Current transformation matrix's dictionary.
+        c_t_dict = self.get_trans(grid)
+        # Current transformation adjoint matrix's dictionary.
+        c_t_adj_dict = self.get_trans_adj(grid) 
+        # Background transformation matrix adjoint's dictionary.
+        b_t_adj_dict = self.get_trans_adj(0)
+        # Transformed background.
+        t_background = self._t_background
 
         b_indices, b_values = ([] for i in range(0, 2))# Boundary indices/values
         b_centers, b_f_o_n = ([] for i in range(0, 2)) # Boundary centers/faces
         b_codim = [] # Boundary codimensions
+
+        # Code hoisting.
+        mask_octant = self.mask_octant
+        get_octant = octree.get_octant
+        get_center = octree.get_center
+        get_bound = octree.get_bound
+        apply_persp_trans = utilities.apply_persp_trans
+        is_point_inside_polygon = utilities.is_point_inside_polygon                            
+                              
         for octant in xrange(0, n_oct):
             # Global index of the current local octant \"octant\".
             g_octant = o_ranges[0] + octant
-            m_g_octant = self.mask_octant(g_octant)
+            m_g_octant = mask_octant(g_octant)
             # Check if the octant is not penalized.
             if (m_g_octant != -1):
-                py_oct = self._octree.get_octant(octant)
-                center  = self._octree.get_center(octant)[: dimension]
+                py_oct = get_octant(octant)
+                center  = get_center(octant)[: dimension]
+
+                # Lambda function.
+                g_b = lambda x : get_bound(py_oct, x)
 
                 # Nodes yet seen. Using Python \"sets\" to avoid duplicates.
                 n_y_s = set()
                 for face in xrange(0, nfaces):
                     # If we have an edge on the boundary.
-                    if self._octree.get_bound(py_oct, 
-                                              face):
+                    if (g_b(face)):
                         b_indices.append(m_g_octant)
                         b_f_o_n.append(face)
                         b_centers.append(center)
                         b_codim.append(1)
                         n_y_s.update(face_node[face][0 : 2])
-                if (mapping):
-                    for node in n_y_s:
-                        b_indices.append(m_g_octant)
-                        b_f_o_n.append(node)
-                        b_centers.append(center)
-                        b_codim.append(2)
+                for node in n_y_s:
+                    b_indices.append(m_g_octant)
+                    b_f_o_n.append(node)
+                    b_centers.append(center)
+                    b_codim.append(2)
         
         (b_values, c_neighs) = self.eval_b_c(b_centers,
                                              b_f_o_n  ,
                                              b_codim)
-        if (mapping):
-            prev_b_center = None
-            prev_t_b_center = None
-            for i, b_center in enumerate(b_centers):
-                same_center = False
-                # They are equal.
-                # \"cmp()\" removed from python 3.x...better using \"==\", is
-                # also more readable as returned value.
-                # http://stackoverflow.com/questions/18674988/comparison-of-list-using-cmp-or
-                #if (cmp(b_center, prev_b_center) == 0):
-                if (b_center == prev_b_center):
-                    t_b_center = prev_t_b_center
-                    same_center = True
-                if (not same_center):
-                    prev_b_center = b_center
-                    t_b_center =  utilities.apply_persp_trans(dimension, 
-                                                              b_center , 
-                                                              c_t_dict ,
-                                                              logger   ,  
-                                                              log_file)[: dimension]
-                    prev_t_b_center = t_b_center
+        
+        prev_b_center = None
+        prev_t_b_center = None
+        for i, b_center in enumerate(b_centers):
+            same_center = False
+            # They are equal.
+            # \"cmp()\" removed from python 3.x...better using \"==\", is
+            # also more readable as returned value.
+            # http://stackoverflow.com/questions/18674988/comparison-of-list-using-cmp-or
+            #if (cmp(b_center, prev_b_center) == 0):
+            if (b_center == prev_b_center):
+                t_b_center = prev_t_b_center
+                same_center = True
+            if (not same_center):
+                prev_b_center = b_center
+                t_b_center =  apply_persp_trans(dimension, 
+                                                b_center , 
+                                                c_t_dict ,
+                                                logger   ,  
+                                                log_file)[: dimension]
+                prev_t_b_center = t_b_center
+                
+            t_b_centers.append(t_b_center)
                     
-                t_b_centers.append(t_b_center)
-                        
-        # TODO: is this conversion necessary?
-        # Converting from numpy array to python list.
-	b_values = b_values.tolist()
-
-        #if grid == 1:
-        #    for i,v in enumerate(b_values):
-        #        b_values[i] = 0.0
 
         # Grids not of the background: equal to number >= 1.
-        if grid:
+        if (grid):
             for i, center in enumerate(c_neighs):
                 check = False
                 # Check if foreground grid is inside the background one.
-                if (mapping):
-                    threshold = 0.0
-                    t_center =  utilities.apply_persp_trans(dimension, 
-                                                            center   , 
-                                                            c_t_dict ,
-                                                            logger   ,  
-                                                            log_file)[: dimension]
-                    check = utilities.is_point_inside_polygon(t_center    ,
-                                                              t_background,
-                                                              logger      ,
-                                                              log_file    ,
-                                                              threshold)
-                else:
-                    check = utilities.check_oct_into_square(center     ,
-                                                	    b_bound    ,
-                                                            h          ,
-                                                            0.0        ,
-                                              	            self.logger,
-                                              	            log_file)
-                if check:
+                threshold = 0.0
+                t_center =  apply_persp_trans(dimension, 
+                                              center   , 
+                                              c_t_dict ,
+                                              logger   ,  
+                                              log_file)[: dimension]
+                check = is_point_inside_polygon(t_center    ,
+                                                t_background,
+                                                logger      ,
+                                                log_file    ,
+                                                threshold)
+                if (check):
                     # Can't use list as dictionary's keys.
                     # http://stackoverflow.com/questions/7257588/why-cant-i-use-a-list-as-a-dict-key-in-python
                     # https://wiki.python.org/moin/DictionaryKeys
@@ -583,88 +574,61 @@ class Laplacian(BaseClass2D.BaseClass2D):
                     # coefficients of the bilinear operator in the \"extension\"
                     # matrix.
                     b_values[i] = 0.0
-        if (mapping):
-            # Current transformation adjoint matrix's dictionary.
-            c_t_adj_dict = self.get_trans_adj(grid) 
-            # Numpy ws'.
-            n_ws_first = utilities.h_c_w_first(dimension    ,
-                                               t_b_centers  ,
-                                               c_t_adj_dict ,
-                                               logger       ,
-                                               log_file)
-            metric_coefficients = utilities.metric_coefficients(dimension,
-                                                                t_b_centers,
-                                                                c_t_adj_dict,
-                                                                logger,
-                                                                log_file)
-            n_values = len(b_values)
-            # Temporary multipliers.
-            t_ms = [0] * n_values
-            # \"adj_matrix[0][0]\"...
-            A00 = c_t_adj_dict[0][0]
-            # ...and so on.
-            A10 = c_t_adj_dict[1][0]
-            A01 = c_t_adj_dict[0][1]
-            A11 = c_t_adj_dict[1][1]
-            # \"adj_matrix[0][0]\"^2...
-            A002 = A00 * A00
-            # ...and so on.
-            A102 = A10 * A10
-            A012 = A01 * A01
-            A112 = A11 * A11
-            # TODO: add coefficients^2 for 3D.
+        
+        metric_coefficients = utilities.metric_coefficients(dimension,
+                                                            t_b_centers,
+                                                            c_t_adj_dict,
+                                                            logger,
+                                                            log_file)
+        n_values = len(b_values)
+        # Temporary multipliers.
+        #t_ms = [0] * n_values
+        # \"adj_matrix[0][0]\"...
+
+        for i in xrange(0, n_values):
+            i_metric_coefficients = metric_coefficients[:, i]
+            codim = b_codim[i]
+            index = b_f_o_n[i]
+            A00 = i_metric_coefficients[0] 
+            A10 = i_metric_coefficients[1]
+            A01 = i_metric_coefficients[2]
+            A11 = i_metric_coefficients[3]
+            ds2_epsilon_x = i_metric_coefficients[4]
+            ds2_epsilon_y = i_metric_coefficients[5]
+            ds2_nu_x = i_metric_coefficients[6]
+            ds2_nu_y = i_metric_coefficients[7]
+            A002 = numpy.square(A00)
+            A102 = numpy.square(A10)
+            A012 = numpy.square(A01)
+            A112 = numpy.square(A11)
+            if (codim == 1):
+                # Temporary multiplier.
+                t_m = (A002 + A102) if (index < 2) else \
+                      (A012 + A112)
+                # Temporary multiplier 02.
+                t_m02 = (ds2_epsilon_x + ds2_epsilon_y) if \
+                        (index < 2) else (ds2_nu_x + ds2_nu_y)
+                t_m02 *= h_half
+                t_m += t_m02 if ((index % 2) == 1) else \
+                       (-1.0 * t_m02)   
+            # Codim == 2, so we are speaking about nodes and not edges.
+            else:
+                t_m = (A00 * A01) + (A10 * A11)
+                t_m *= 0.5 if ((index == 0) or (index == 3)) \
+                           else -0.5
+
+            # TODO: Sum coefficients^2 for 3D.
             if (dimension == 3):
                 pass
 
-            for i in xrange(0, n_values):
-                i_metric_coefficients = metric_coefficients[:, i]
-                #w_first = n_ws_first[i]
-                w_first = 1.0
-                w_first2 = w_first * w_first
-                codim = b_codim[i]
-                index = b_f_o_n[i]
-                A00 = i_metric_coefficients[0] 
-                A10 = i_metric_coefficients[1]
-                A01 = i_metric_coefficients[2]
-                A11 = i_metric_coefficients[3]
-                ds2_epsilon_x = i_metric_coefficients[4]
-                ds2_epsilon_y = i_metric_coefficients[5]
-                ds2_nu_x = i_metric_coefficients[6]
-                ds2_nu_y = i_metric_coefficients[7]
-                A002 = numpy.square(A00)
-                A102 = numpy.square(A10)
-                A012 = numpy.square(A01)
-                A112 = numpy.square(A11)
-                if (codim == 1):
-                    # Temporary multiplier.
-                    t_m = (A002 + A102) if ((index == 0) or (index == 1)) else \
-                          (A012 + A112)
-                    if (index == 0):
-                        t_m = t_m - (0.5*h*(ds2_epsilon_x + ds2_epsilon_y))
-                    elif (index == 1):   
-                        t_m = t_m + (0.5*h*(ds2_epsilon_x + ds2_epsilon_y))
-                    elif (index == 2):
-                        t_m = t_m - (0.5*h*(ds2_nu_x + ds2_nu_y))
-                    elif (index == 3):
-                        t_m = t_m + (0.5*h*(ds2_nu_x + ds2_nu_y))
-                # Codim == 2, so we are speaking about nodes and not edges.
-                else:
-                    t_m = (A00 * A01) + (A10 * A11)
-                    t_m = (t_m * 0.5) if ((index == 0) or (index == 3)) else \
-                          (t_m * (-0.5))
-                # TODO: Sum coefficients^2 for 3D.
-                if (dimension == 3):
-                    pass
-                t_m = (-1.0 / h2) * (w_first2 * t_m)
-                b_values[i] = b_values[i] * t_m
-                # The three following lines are just syntactic sugar to express
-                # some python's capabilities. But the previous one line is just
-                # faster. Tested personally on a list of 10000.
-                #t_ms[i] = t_m
-            #b_values = map(lambda pair : (pair[0] * pair[1]), 
-            #               zip(b_values, t_ms))
-        else:
-            b_values[:] = [b_value * (-1.0 / h2) for b_value in b_values]
+            t_m = h2_inv_neg * t_m
+            b_values[i] = b_values[i] * t_m
+            # The three following lines are just syntactic sugar to express
+            # some python's capabilities. But the previous one line is just
+            # faster. Tested personally on a list of 10000.
+            #t_ms[i] = t_m
+        #b_values = map(lambda pair : (pair[0] * pair[1]), 
+        #               zip(b_values, t_ms))
    
         insert_mode = PETSc.InsertMode.ADD_VALUES
         self._rhs.setValues(b_indices,
@@ -1330,13 +1294,15 @@ class Laplacian(BaseClass2D.BaseClass2D):
                                                      yet_masked = True)
                         if not is_n_penalized:
                             indices.append(m_index)
-                            t_m = (A002 + A102) if ((face < 2)) else \
+                            # Temporary multiplier.
+                            t_m = (A002 + A102) if (face < 2) else \
                                   (A012 + A112)
+                            # Temporary multiplier 02.
                             t_m02 = (ds2_epsilon_x + ds2_epsilon_y) if \
                                     (face < 2) else (ds2_nu_x + ds2_nu_y)
                             t_m02 *= h_half
                             t_m += t_m02 if ((face % 2) == 1) else \
-                                            (-1.0 * t_m02)   
+                                   (-1.0 * t_m02)   
                             value_to_append = t_m * h2_inv
                             values.append(value_to_append)
                     else:
