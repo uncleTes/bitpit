@@ -1192,7 +1192,9 @@ class Laplacian(BaseClass2D.BaseClass2D):
         is_background = False if (grid) else True
         # Range deplacement.
         h = self._h
+        h_half = 0.5 * h
         h2 = h * h
+        h2_inv = 1.0 / h2
         oct_offset = 0
         t_foregrounds = self._t_foregrounds
         for i in xrange(0, grid):
@@ -1228,10 +1230,12 @@ class Laplacian(BaseClass2D.BaseClass2D):
         get_corners_from_center = utilities.get_corners_from_center
         apply_persp_trans = utilities.apply_persp_trans
         is_point_inside_polygons = utilities.is_point_inside_polygons
-        h_c_w_first = utilities.h_c_w_first
         metric_coefficients = utilities.metric_coefficients
         square = numpy.square
         check_neighbour = self.check_neighbour
+        get_bound = octree.get_bound
+        # Lambda function.
+        g_c_f_c = lambda x : get_corners_from_center(x, h)
 
         for octant in xrange(0, n_oct):
             indices, values = ([] for i in range(0, 2)) # Indices/values
@@ -1241,13 +1245,15 @@ class Laplacian(BaseClass2D.BaseClass2D):
             m_g_octant = mask_octant(g_octant)
             py_oct = get_octant(octant)
             center = get_center(octant)[: dimension]
+            # Lambda function.
+            g_b = lambda x : get_bound(py_oct, x)
             # Check to know if an octant on the background is penalized.
             is_penalized = False
             # Background grid.
             if (is_background):
                 is_penalized = True
                 threshold = 0.0
-                oct_corners = get_corners_from_center(center, h)
+                oct_corners = g_c_f_c(center)
                 for i, corner in enumerate(oct_corners):
                     is_corner_penalized = False
                     corner = apply_persp_trans(dimension, 
@@ -1272,24 +1278,11 @@ class Laplacian(BaseClass2D.BaseClass2D):
                                              c_t_dict ,
                                              logger   ,  
                                              log_file)[: dimension]
-                #w_first = h_c_w_first(dimension ,
-                #                      # Doing a list of just one
-                #                      # list, to use numpy. For
-                #                      # example, with dimension 2
-                #                      #\"[center]\" will be 
-                #                      # \"[[x, y]]\".
-                #                      [t_center],
-                #                      c_t_a_dict,
-                #                      logger    ,
-                #                      log_file)
                 i_metric_coefficients = metric_coefficients(dimension,
                                                             [t_center],
                                                             c_t_a_dict,
                                                             logger,
                                                             log_file)
-                # TODO: why this w_first = 1.0? Because it is yet evaluated into
-                #       the coefficients \"i_metric_coefficients\"
-                w_first = 1.0
                 A00 = i_metric_coefficients[0] 
                 A10 = i_metric_coefficients[1]
                 A01 = i_metric_coefficients[2]
@@ -1306,19 +1299,17 @@ class Laplacian(BaseClass2D.BaseClass2D):
                 ds2_epsilon_y = i_metric_coefficients[5]
                 ds2_nu_x = i_metric_coefficients[6]
                 ds2_nu_y = i_metric_coefficients[7]
-                w_first2 = w_first * w_first
-                t_m = (-2.0) * w_first2 * ((A002 + A102) + (A012 + A112))
-                value_to_append = t_m / h2
+                t_m = (-2.0) * ((A002 + A102) + (A012 + A112))
+                value_to_append = t_m * h2_inv
                 values.append(value_to_append)
                 # Nodes yet seen.
                 n_y_s = set()
                 # Nodes to not see.
                 n_t_n_s = set()
                 for face in xrange(0, nfaces):
-                    if not octree.get_bound(py_oct, 
-                                            face):
+                    if (not g_b(face)):
                         n_y_s.update(face_node[face][0 : 2])
-                        
+
                         (m_index       , 
                          is_n_penalized,
                          n_center) = check_neighbour(1                         ,
@@ -1339,19 +1330,14 @@ class Laplacian(BaseClass2D.BaseClass2D):
                                                      yet_masked = True)
                         if not is_n_penalized:
                             indices.append(m_index)
-                            t_m = (A002 + A102) if ((face == 0) or \
-                                                    (face == 1)) else \
+                            t_m = (A002 + A102) if ((face < 2)) else \
                                   (A012 + A112)
-                            t_m = (1.0 * w_first2) * t_m
-                            if (face == 0):
-                                t_m = t_m - (0.5*h*(ds2_epsilon_x + ds2_epsilon_y))
-                            elif (face == 1):   
-                                t_m = t_m + (0.5*h*(ds2_epsilon_x + ds2_epsilon_y))
-                            elif (face == 2):
-                                t_m = t_m - (0.5*h*(ds2_nu_x + ds2_nu_y))
-                            elif (face == 3):
-                                t_m = t_m + (0.5*h*(ds2_nu_x + ds2_nu_y))
-                            value_to_append = t_m / h2
+                            t_m02 = (ds2_epsilon_x + ds2_epsilon_y) if \
+                                    (face < 2) else (ds2_nu_x + ds2_nu_y)
+                            t_m02 *= h_half
+                            t_m += t_m02 if ((face % 2) == 1) else \
+                                            (-1.0 * t_m02)   
+                            value_to_append = t_m * h2_inv
                             values.append(value_to_append)
                     else:
                         # Removing nodes being on the boundaries. They will not
@@ -1381,10 +1367,10 @@ class Laplacian(BaseClass2D.BaseClass2D):
                                                  yet_masked = True)
                     if not is_n_penalized:
                         indices.append(m_index)
-                        t_m = w_first2 * ((A00 * A01) + (A10 * A11))
-                        t_m = (t_m * 0.5) if ((node == 0) or (node == 3)) \
-                                          else (t_m * (-0.5))
-                        value_to_append = (1.0 / h2) * t_m
+                        t_m = (A00 * A01) + (A10 * A11)
+                        t_m *= 0.5 if ((node == 0) or (node == 3)) \
+                                   else -0.5
+                        value_to_append = t_m * h2_inv
                         values.append(value_to_append)
 
                 self._b_mat.setValues(m_g_octant, # Row
