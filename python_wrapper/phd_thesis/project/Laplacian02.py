@@ -2137,110 +2137,95 @@ class Laplacian(BaseClass2D.BaseClass2D):
         octree = self._octree
         nfaces = octree.get_n_faces()
         nnodes = octree.get_n_nodes()
-        mapping = self._mapping
-        if (mapping):
-            c_t_dict = self.get_trans(grid)
-            t_background = self._t_background
+        c_t_dict = self.get_trans(grid)
+        t_background = self._t_background
 	log_file = self.logger.handlers[0].baseFilename
         logger = self.logger
         # Ghosts' deplacement.
         g_d = 0
-        if grid:
-            for i in range(0, grid):
-                g_d = g_d + self._oct_f_g[i]
+        for i in xrange(0, grid):
+            g_d = g_d + self._oct_f_g[i]
+        # Current center.
+        c_c = self._octree.get_center(current_octant)[: dimension]
 
-        centers.append(self._octree.get_center(current_octant)[: dimension])
+        centers.append(c_c)
         index = current_octant
         m_index = self.mask_octant(index + start_octant)
-        #if is_background:
-        #    m_index = index + start_octant
         indices.append(m_index)
 
         neighs, ghosts = ([] for i in range(0, 2))
+
+        #Code hoisting.
+        find_neighbours = octree.find_neighbours
+        mask_octant = self.mask_octant
+        get_center = octree.get_center
+        get_ghost_global_idx = octree.get_ghost_global_idx
+        get_ghost_octant = octree.get_ghost_octant
+        neighbour_centers = self.neighbour_centers
+        apply_persp_trans = utilities.apply_persp_trans
+        is_point_inside_polygon = utilities.is_point_inside_polygon
+        # Lambda function.
+        f_n = lambda x,y : find_neighbours(current_octant,
+                                           x             ,
+                                           y             ,
+                                           neighs        ,
+                                           ghosts)
         for i in xrange(0, nfaces + nnodes):
             # Codimension.
             codim = 1 if (i <= 3) else 2
             # Index of current face or node.
             face_node = i if (i <= 3) else (i - 4)
             
-            (neighs, 
-             ghosts) = self._octree.find_neighbours(current_octant,
-                                                    face_node     ,
-                                                    codim         ,
-                                                    neighs        ,
-                                                    ghosts)
-            #if (not is_background):
-            #    print("current octant " + str(current_octant) + " codim = " + str(codim) + " face_node = " + str(face_node) + " : " + str(neighs))
+            (neighs, ghosts) = f_n(face_node, codim)
             # Check if it is really a neighbour of edge or node. If not,
             # it means that we are near the boundary if we are on the
             # background, in an outside area if we are on the foreground, 
             # and so...
-            if len(neighs) is not 0:
+            if (not not neighs):
                 # Neighbour is into the same process, so is local.
-                if not ghosts[0]:
+                if (not ghosts[0]):
+                    by_octant = False
                     index = neighs[0]
-                    m_index = self.mask_octant(index + start_octant)
-                    #if is_background:
-                    #    m_index = index + start_octant
-                    # Node not covered.
-                    if (m_index != -1):
-                        cell_center = self._octree.get_center(neighs[0])[: dimension]
-                        centers.append(cell_center)
-                        indices.append(m_index)
+                    m_index = mask_octant(index + start_octant)
+                    py_ghost_oct = index
                 else:
-                    # In this case, the quas(/oc)tree is no more local
-                    # into the current process, so we have to find it
-                    # globally.
-                    index = self._octree.get_ghost_global_idx(neighs[0])
-                    # \".index\" give us the index of 
-                    # \"self._global_ghosts\" that contains the index
-                    # of the global ghost quad(/oc)tree previously
-                    # found and stored in \"index\".
-                    py_ghost_oct = self._octree.get_ghost_octant(neighs[0])
-                    m_index = self.mask_octant(index + g_d)
-                    #if is_background:
-                    #    m_index = index
-                    # Node not covered.
-                    if (m_index != -1):
-                        cell_center = self._octree.get_center(py_ghost_oct, 
-                                                              True)[: dimension]
-                        centers.append(cell_center)
-                        indices.append(m_index)
+                    by_octant = True
+                    # In this case, the quas(/oc)tree is no more local into
+                    # the current process, so we have to find it globally.
+                    index = get_ghost_global_idx(neighs[0])
+                    # \".index\" give us the index of \"self._global_ghosts\" 
+                    # that contains the index of the global ghost quad(/oc)tree
+                    # previously found and stored in \"index\".
+                    py_ghost_oct = get_ghost_octant(neighs[0])
+                    m_index = mask_octant(index + g_d)
+                if (m_index != -1):
+                    cell_center = get_center(py_ghost_oct,
+                                             by_octant)[: dimension]
+                    centers.append(cell_center)
+                    indices.append(m_index)
             # ...we need to evaluate boundary values (background) or not to 
             # consider the indeces and centers found (foreground).
             else:
                 to_consider = True
-                center = self._octree.get_center(current_octant)[: dimension]
-                #if (not is_background):
-                #    print(center)
-                border_center = self.neighbour_centers(center,
-                                                       codim ,
-                                                       face_node)
-                #if (not is_background):
-                #    print(border_center)
+                border_center = neighbour_centers(c_c  ,
+                                                  codim,
+                                                  face_node)
 
                 if (not is_background):
-                    if (mapping):
-                        threshold = 0.0
-                        t_center =  utilities.apply_persp_trans(dimension    , 
-                                                                border_center, 
-                                                                c_t_dict     ,
-                                                                logger       ,  
-                                                                log_file)[: dimension]
-                        check = utilities.is_point_inside_polygon(t_center    ,
-                                                                  t_background,
-                                                                  logger      ,
-                                                                  log_file    ,
-                                                                  threshold)
-                    else:
-                        check = utilities.check_oct_into_square(border_center,
-                                                    	        b_bound      ,
-                                                                h            ,
-                                                                0.0          ,
-                                                  	        self.logger  ,
-                                                  	        log_file)
-                    if (check):
-                        to_consider = False
+                    threshold = 0.0
+                    to_consider = False
+                    t_center =  apply_persp_trans(dimension    , 
+                                                  border_center, 
+                                                  c_t_dict     ,
+                                                  logger       ,  
+                                                  log_file)[: dimension]
+                    check = is_point_inside_polygon(t_center    ,
+                                                    t_background,
+                                                    logger      ,
+                                                    log_file    ,
+                                                    threshold)
+                    if (not check):
+                        to_consider = True
                     
                 if (to_consider):
                     centers.append(border_center)
