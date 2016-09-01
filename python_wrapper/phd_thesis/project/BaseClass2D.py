@@ -36,6 +36,10 @@ class BaseClass2D(object):
         log_file =  kwargs["log file"]
         to_log = kwargs["to log"]
         what_log = "debug"
+        # If \"Log\" option in file \"PABLO.ini\" is \"False\", then the 
+        # \"what_log\" flag will be \"critical\", to log only messages with
+        # importance equal or greater than \"critical\". But, usually in the
+        # context of this project, debug flags are just "info\" and \"error\". 
         if (not to_log):
             what_log = "critical"
         self.logger = utilities.set_class_logger(self    , 
@@ -44,14 +48,14 @@ class BaseClass2D(object):
         # Mangling with the prefix \"__\" to have \"private\" attributes. Use 
         # \"_\" instead to have \"protected\" ones.
         # http://stackoverflow.com/questions/1641219/does-python-have-private-variables-in-classes
-        self._comm = utilities.check_mpi_intracomm(comm, 
+        self._comm = utilities.check_mpi_intracomm(comm       , 
                                                    self.logger,
                                                    type = "local")
-        self._comm_w = utilities.check_mpi_intracomm(comm_w,
+        self._comm_w = utilities.check_mpi_intracomm(comm_w     ,
                                                      self.logger,
                                                      type = "world")
-        self._octree = utilities.check_octree(octree    , 
-                                              self._comm, 
+        self._octree = utilities.check_octree(octree     , 
+                                              self._comm , 
                                               self.logger,
                                               type = "local")
         self._dim = kwargs["dimension"]
