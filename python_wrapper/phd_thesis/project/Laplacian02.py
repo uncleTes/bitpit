@@ -159,46 +159,6 @@ class Laplacian(BaseClass2D.BaseClass2D):
         self.init_e_structures()
     # --------------------------------------------------------------------------
 
-    def temp_funct(self):
-	log_file = self.logger.handlers[0].baseFilename
-        logger = self.logger
-        h_t = 0.25 / numpy.sqrt(self._N_oct)
-        c_t_dict = self.get_trans(1)
-        n01 = [0.25 + h_t, 0.25 + h_t]
-        n02 = [0.5 - h_t, 0.25 + h_t]
-        n03 = [0.5 - h_t, 0.5  - h_t]
-        n04 = [0.25 + h_t, 0.5 - h_t]
-        t_n01 =  utilities.apply_persp_trans(2, 
-                                             n01, 
-                                             c_t_dict ,
-                                             logger   ,  
-                                             log_file)[: 2]
-        t_n02 =  utilities.apply_persp_trans(2, 
-                                             n02, 
-                                             c_t_dict ,
-                                             logger   ,  
-                                             log_file)[: 2]
-        t_n03 =  utilities.apply_persp_trans(2, 
-                                             n03, 
-                                             c_t_dict ,
-                                             logger   ,  
-                                             log_file)[: 2]
-        t_n04 =  utilities.apply_persp_trans(2, 
-                                             n04, 
-                                             c_t_dict ,
-                                             logger   ,  
-                                             log_file)[: 2]
-        #print(self._t_foregrounds)
-        self._t_foregrounds = []
-        t_list = []
-        t_list.append(t_n01)
-        t_list.append(t_n02)
-        t_list.append(t_n03)
-        t_list.append(t_n04)
-        self._t_foregrounds.append(t_list)
-        #print(self._t_foregrounds)
-    
-    # --------------------------------------------------------------------------
     # Returns the center of the face neighbour.
     # TODO: modify this function to be used in 3D case.
     def neighbour_centers(self   ,
@@ -642,44 +602,6 @@ class Laplacian(BaseClass2D.BaseClass2D):
         self.log_msg(msg   ,
                      "info",
                      extra_msg)
-    # --------------------------------------------------------------------------
-    
-    # --------------------------------------------------------------------------
-    # TODO: modify this function to be used in 3D case.
-    # Creates a layer around the foreground grids, reducing their area.
-    def apply_overlap(self,
-                      overlap):
-        """Method which apply a layer onto the foreground grids to reduce the
-           \"penalized\" area and so do less iterations to converge.
-           
-           Arguments:
-               overlap (number) : size of the layer to apply.
-
-           Returns:
-               p_bound (list of lists) : list of the new \"penalized\" grids."""
-
-        f_bound = self._f_bound
-        # \"p_bound\" is a new vector of vectors which contains the 
-        # effective boundaries to check for penalization using an 
-        # overlapping region for the grids, used into D.D.
-        # Penalization boundaries.
-        p_bound = []
-        # Reducing penalization boundaries using the overlap.
-        for boundary in f_bound:
-            # Temporary boundary
-            t_bound = []
-            for index, point in enumerate(boundary):
-                t_bound.append(point + overlap) if (index % 2) == 0 else \
-                t_bound.append(point - overlap)
-            p_bound.append(t_bound)
-        
-        msg = "Applied overlap"
-        extra_msg = "with overlap " + str(overlap)
-        self.log_msg(msg   ,
-                     "info",
-                     extra_msg)
-
-        return p_bound
     # --------------------------------------------------------------------------
     
     # --------------------------------------------------------------------------
