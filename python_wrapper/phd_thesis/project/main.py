@@ -83,7 +83,6 @@ try:
         (not refinements)):
         raise ParsingFileException
 
-    overlapping = config.getboolean("PROBLEM", "Overlapping")
     # Particles interaction.
     p_inter = config.getboolean("PROBLEM", "ParticlesInteraction")
     # Logical to physical mapping.
@@ -202,7 +201,6 @@ def set_comm_dict(n_grids  ,
     comm_dictionary.update({"foreground boundaries" : 
                             foreground_boundaries})
     comm_dictionary.update({"process grid" : proc_grid})
-    comm_dictionary.update({"overlapping" : overlapping})
     comm_dictionary.update({"dimension" : dimension})
     comm_dictionary.update({"to log" : to_log})
     comm_dictionary.update({"particles interaction" : p_inter})

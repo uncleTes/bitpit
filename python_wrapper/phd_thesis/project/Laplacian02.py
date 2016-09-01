@@ -67,9 +67,6 @@ class Laplacian(BaseClass2D.BaseClass2D):
         super(Laplacian, self).__init__(kwargs)
         # If some arguments are not presents, function \"setdefault\" will set 
         # them to the default value.
-        # Over-lapping.
-        self._over_l = kwargs.setdefault("overlapping",
-                                         False)
         # Particles interaction.
         self._p_inter = kwargs.setdefault("particles interaction",
                                           False)
