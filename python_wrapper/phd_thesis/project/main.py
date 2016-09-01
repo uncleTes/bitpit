@@ -55,10 +55,13 @@ try:
     edges = utilities.get_list_from_string(config.get("PABLO", "Edges"), 
                                            ","                         , 
                                            False)
+    # \"t_points\" stands for \"transformed points\" because the mapping is done
+    # between the computational domain (0, 0, 0) + edge and the physical one
+    # given by "\GridPoints\".
     t_points = utilities.get_lists_from_string(config.get("PABLO",
-                                                          "TransformedPoints"),
-                                               ";"                            ,
-                                               ","                            ,
+                                                          "GridPoints"),
+                                               ";"                     ,
+                                               ","                     ,
                                                False)
 
     refinements = utilities.get_list_from_string(config.get("PABLO", 
