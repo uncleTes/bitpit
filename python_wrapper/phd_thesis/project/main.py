@@ -47,10 +47,10 @@ try:
     n_grids = config.getint("PABLO", 
                             "NumberOfGrids")
 
-    anchors = utilities.get_lists_from_string(config.get("PABLO", "Anchors"), 
-                                              ";"                           , 
-                                              ","                           ,
-                                              False)
+    anchors = []
+    anchor = [0, 0, 0]
+    for i in xrange(0, n_grids):
+        anchors.append(anchor)    
 
     edges = utilities.get_list_from_string(config.get("PABLO", "Edges"), 
                                            ","                         , 
