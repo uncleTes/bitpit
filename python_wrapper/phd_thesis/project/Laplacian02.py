@@ -27,7 +27,6 @@ class Laplacian(BaseClass2D.BaseClass2D):
                                 process where evaluate the laplacian.
         _octree (class_para_tree.Py_Class_Para_Tree_D2) : PABLO's ParaTree.
         _comm_w (MPI.Intracomm) : global intracommunicator.
-        _pen (float or int) : penalization value.
         _over_l (boolean) : flag inndicating if we are in an overlapped or 
                             full immersed case.
         _f_bound (list of lists) : foreground boundaries (boundaries of the
@@ -68,9 +67,6 @@ class Laplacian(BaseClass2D.BaseClass2D):
         super(Laplacian, self).__init__(kwargs)
         # If some arguments are not presents, function \"setdefault\" will set 
         # them to the default value.
-        # Penalization.
-        self._pen = kwargs.setdefault("penalization", 
-                                      0)
         # Over-lapping.
         self._over_l = kwargs.setdefault("overlapping",
                                          False)
@@ -770,7 +766,6 @@ class Laplacian(BaseClass2D.BaseClass2D):
 
         logger = self.logger
         log_file = logger.handlers[0].baseFilename
-        penalization = self._pen
         grid = self._proc_g
         n_oct = self._n_oct
         octree = self._octree
@@ -1068,7 +1063,6 @@ class Laplacian(BaseClass2D.BaseClass2D):
 
 	log_file = self.logger.handlers[0].baseFilename
         logger = self.logger
-        penalization = self._pen
         f_bound = self._f_bound
         grid = self._proc_g
         comm_w = self._comm_w

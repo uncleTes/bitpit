@@ -83,8 +83,6 @@ try:
         (not refinements)):
         raise ParsingFileException
 
-    b_pen = config.getfloat("PROBLEM", "BackgroundPenalization")
-    f_pen = config.getfloat("PROBLEM", "ForegroundPenalization")
     overlapping = config.getboolean("PROBLEM", "Overlapping")
     # Particles interaction.
     p_inter = config.getboolean("PROBLEM", "ParticlesInteraction")
@@ -175,7 +173,6 @@ def set_comm_dict(n_grids  ,
     comm_dictionary.update({"world communicator" : comm_w})
     comm_dictionary.update({"octants for grids" : oct_f_g})
     comm_dictionary.update({"total octants number" : tot_oct})
-    penalization = f_pen if proc_grid else b_pen
     background_boundaries = [anchors[0][0], anchors[0][0] + edges[0],
                              anchors[0][1], anchors[0][1] + edges[0]]
     if (dimension == 3):
@@ -202,7 +199,6 @@ def set_comm_dict(n_grids  ,
 
             foreground_boundaries.append(boundary)
 
-    comm_dictionary.update({"penalization" : penalization})
     comm_dictionary.update({"foreground boundaries" : 
                             foreground_boundaries})
     comm_dictionary.update({"process grid" : proc_grid})
