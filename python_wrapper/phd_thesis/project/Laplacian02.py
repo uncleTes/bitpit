@@ -1569,6 +1569,7 @@ class Laplacian(BaseClass2D.BaseClass2D):
                          None)
 
         # Setting tolerances.
+	# 1.0e-06 with level 9,9 is still ok for convergence
         tol = 1.e-06
         ksp.setTolerances(rtol = tol            , 
                           atol = tol            , 
