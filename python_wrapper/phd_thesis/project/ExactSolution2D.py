@@ -42,42 +42,28 @@ class ExactSolution2D(BaseClass2D.BaseClass2D):
         dim = 2
         log_file = None
         logger = None
-        x_n = copy.deepcopy(x)
-        y_n = copy.deepcopy(y)
-        x_t = []
+        x_n, y_n = ([] for i in xrange(0, 2))
+        x_t = x
+        y_t = y
         if (use_mapping):
             if (type(x) is not list):
-                values = utilities.apply_persp_trans(2     , 
-                                                     (x_n, y_n), 
-                                                     mapping ,
-                                                     logger  ,
+                x_t = [x]
+                y_t = [y]
+            n_x = len(x_t)
+            for i in xrange(0, n_x):
+                values = utilities.apply_persp_trans(dim             , 
+                                                     (x_t[i], y_t[i]), 
+                                                     mapping         ,
+                                                     logger          ,
                                                      log_file)
-                x_n = values[0]
-                y_n = values[1]
-                x_t.append(x_n - x)
-                #print(x_t)
-            else:
-                n_x = len(x)
-                for i in xrange(0, n_x):
-                    #print("prima " + str((x_n[i], y_n[i])))
-                    values = utilities.apply_persp_trans(dim           , 
-                                                         (x_n[i], y_n[i]), 
-                                                         mapping       ,
-                                                         logger        ,
-                                                         log_file)
-                    #print("dopo " + str(values))
-                    x_n[i] = values[0]
-                    y_n[i] = values[1]
-                    x_t.append(x_n[i] - x[i])
+                x_n.append(values[0])
+                y_n.append(values[1])
+            
+            x_t = x_n
+            y_t = y_n
 
-        
-            #print("dopo" + str(x_t))
-        else:
-            pass
-            #print("BELLA PADELLA")
-
-        return numpy.sin(numpy.power(numpy.array(x_n) - 0.5, 2) + 
-                         numpy.power(numpy.array(y_n) - 0.5, 2))
+        return numpy.sin(numpy.power(numpy.array(x_t) - 0.5, 2) + 
+                     numpy.power(numpy.array(y_t) - 0.5, 2))
 
     # Solution second derivative = 4 * cos((x - 0.5)^2 + (y - 0.5)^2) - 
     #                              4 * sin((x - 0.5)^2 + (y - 0.5)^2) *
