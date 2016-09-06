@@ -88,8 +88,6 @@ try:
 
     # Particles interaction.
     p_inter = config.getboolean("PROBLEM", "ParticlesInteraction")
-    # Logical to physical mapping.
-    mapping = config.getboolean("PROBLEM", "Mapping")
     # Log infos to log file or not.
     to_log = config.getboolean("PROBLEM", "Log")
 except (ConfigParser.NoOptionError , 
@@ -207,10 +205,8 @@ def set_comm_dict(n_grids  ,
     comm_dictionary.update({"dimension" : dimension})
     comm_dictionary.update({"to log" : to_log})
     comm_dictionary.update({"particles interaction" : p_inter})
-    comm_dictionary.update({"mapping" : mapping})
     comm_dictionary.update({"log file" : log_file})
-    if (mapping):
-        comm_dictionary.update({"transformed points" : t_points})
+    comm_dictionary.update({"transformed points" : t_points})
 
     return comm_dictionary
 # ------------------------------------------------------------------------------
@@ -396,31 +392,26 @@ def compute(comm_dictionary     ,
     t_coeffs = numpy.array(None)
     t_coeffs_adj = numpy.array(None)
     
-    if (mapping):
-        trans_dictionary, trans_adj_dictionary = set_trans_dicts(n_grids  ,
-                                                                 dimension,
-                                                                 logger   ,
-                                                                 log_file)
-        t_coeffs = trans_dictionary[proc_grid]
-        t_coeffs_adj = trans_adj_dictionary[proc_grid]
-        laplacian.init_trans_dict(trans_dictionary)
-        laplacian.init_trans_adj_dict(trans_adj_dictionary)
+    trans_dictionary, trans_adj_dictionary = set_trans_dicts(n_grids  ,
+                                                             dimension,
+                                                             logger   ,
+                                                             log_file)
+    t_coeffs = trans_dictionary[proc_grid]
+    t_coeffs_adj = trans_adj_dictionary[proc_grid]
+    laplacian.init_trans_dict(trans_dictionary)
+    laplacian.init_trans_adj_dict(trans_adj_dictionary)
     (d_nnz, o_nnz) = laplacian.create_mask()
     laplacian.init_sol()
 
     laplacian.init_mat((d_nnz, o_nnz))
     not_penalized_centers = laplacian.not_pen_centers
     # Physical centers.
-    if mapping:
-        p_centers = [utilities.apply_persp_trans(dimension,
-                                                 center   , 
-                                                 t_coeffs , 
-                                                 logger   , 
-                                                 log_file)\
-                     for center in not_penalized_centers]
-    else:
-        p_centers = [center[0 : dimension] \
-                     for center in not_penalized_centers]
+    p_centers = [utilities.apply_persp_trans(dimension,
+                                             center   , 
+                                             t_coeffs , 
+                                             logger   , 
+                                             log_file)\
+                 for center in not_penalized_centers]
     # Numpy physical centers.
     # Numpy's \".asarray()\" or \".array()\" function? Checkout this link:
     # http://stackoverflow.com/questions/14415741/numpy-array-vs-asarray
@@ -428,10 +419,11 @@ def compute(comm_dictionary     ,
     # because it will be always needed a copy of the object.
     n_p_centers = numpy.array(p_centers)
 
-    exact_solution.e_sol(n_p_centers[:, 0], 
-                         n_p_centers[:, 1],
+    exact_solution.e_sol(n_p_centers[:, 0]                              , 
+                         n_p_centers[:, 1]                              ,
                          n_p_centers[:, 2] if (dimension == 3) else None,
-                         numpy.array(None))
+                         numpy.array(None)                              ,
+                         use_mapping = False)
     exact_solution.e_s_der(n_p_centers[:, 0], 
                            n_p_centers[:, 1],
                            n_p_centers[:, 2] if (dimension == 3) else None)
@@ -448,21 +440,18 @@ def compute(comm_dictionary     ,
     print(msg) 
     interpolate_sol = laplacian.reset_partially_solution()
     #interpolate_sol = laplacian.interpolate_solution()
-    if mapping:
-        p_centers = [utilities.apply_persp_trans(dimension,
-                                                 center   , 
-                                                 t_coeffs , 
-                                                 logger   ,
-                                                 log_file)\
-                     for center in centers]
-    else:
-        p_centers = [center[0 : dimension] \
-                     for center in centers]
+    p_centers = [utilities.apply_persp_trans(dimension,
+                                             center   , 
+                                             t_coeffs , 
+                                             logger   ,
+                                             log_file)\
+                 for center in centers]
     n_p_centers = numpy.array(p_centers)
-    exact_solution.e_sol(n_p_centers[:, 0], 
-                         n_p_centers[:, 1],
+    exact_solution.e_sol(n_p_centers[:, 0]                              , 
+                         n_p_centers[:, 1]                              ,
                          n_p_centers[:, 2] if (dimension == 3) else None,
-                         numpy.array(None))
+                         numpy.array(None)                              ,
+                         use_mapping = False)
     data_to_save = numpy.array([exact_solution.sol,
                                 interpolate_sol.getArray()])
 
@@ -541,11 +530,10 @@ def main():
     n_octs = pablo.get_num_octants()
     n_nodes = pablo.get_num_nodes()
 
-    if (mapping):
-        (geo_nodes, ghost_geo_nodes) = pablo.apply_persp_trans(dimension  ,
-                                                               trans_coeff, 
-                                                               logger     , 
-                                                               log_file)
+    (geo_nodes, ghost_geo_nodes) = pablo.apply_persp_trans(dimension  ,
+                                                           trans_coeff, 
+                                                           logger     , 
+                                                           log_file)
 
     vtk = my_class_vtk.Py_My_Class_VTK(data_to_save            , # Data
                                        pablo                   , # Octree
@@ -556,8 +544,7 @@ def main():
                                        n_nodes                 , # Nnodes
                                        (2**dimension) * n_octs)  # (Nnodes * 
                                                                  #  pow(2,dim))
-    if (mapping):
-        vtk.apply_trans(geo_nodes, ghost_geo_nodes) 
+    vtk.apply_trans(geo_nodes, ghost_geo_nodes) 
     ## Add data to "vtk" object to be written later.
     vtk.add_data("evaluated", # Data
                  1          , # Data dim

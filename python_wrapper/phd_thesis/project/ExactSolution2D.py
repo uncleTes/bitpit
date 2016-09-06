@@ -24,11 +24,11 @@ class ExactSolution2D(BaseClass2D.BaseClass2D):
     # Exact solution = sin((x - 0.5)^2 + (y - 0.5)^2).
     # http://stackoverflow.com/questions/136097/what-is-the-difference-between-staticmethod-and-classmethod-in-python
     @staticmethod
-    def solution(x       , 
-                 y       ,
-                 z       ,
-                 mapping ,
-                 use_mapping = False):
+    def solution(x      , 
+                 y      ,
+                 z      ,
+                 mapping,
+                 use_mapping = True):
         """Static method which returns the solution:  
            sin((x - 0.5)^2 + (y - 0.5)^2).
            
@@ -167,7 +167,7 @@ class ExactSolution2D(BaseClass2D.BaseClass2D):
               y      ,
               z      ,
               mapping,
-              use_mapping = False):
+              use_mapping = True):
         """Method which evaluates the solution. It calls the method \"solution\"
            to obtain it; at a first glance can appear useless, but it has the
            capability to be independent from the exact solution, so for the

@@ -122,32 +122,31 @@ class Laplacian(BaseClass2D.BaseClass2D):
         # and inside the local one.
         self._rank_w = self._comm_w.Get_rank()
         self._rank = self._comm.Get_rank()
-        if (self._mapping):
-            t_points = kwargs.setdefault("transformed points", None)
-            if (not t_points):
-                msg = "\"MPI Abort\" called during initialization "
-                extra_msg = " Transformed points with mapping \"True\" are " + \
-                            "not initialized. Please check your \"config file\"."
-                self.log_msg(msg    , 
-                             "error",
-                             extra_msg)
-	        self._comm_w.Abort(1)
-            # Transformed background.
-            self._t_background = [] 
-            # Transformed polygons.
-            self._t_foregrounds = []
-            for i, polygon in enumerate(t_points):
-                # Temporary transformed points.
-                t_t_points = []
-                n_coordinates = len(polygon)
-                #TODO: modify to do 3D!!
-                for j in xrange(0, n_coordinates, 3):
-                    t_t_points.append([polygon[j], polygon[j + 1]])
-                    j += 2
-                if (i == 0):
-                    self._t_background = t_t_points
-                else:
-                    self._t_foregrounds.append(t_t_points)
+        t_points = kwargs.setdefault("transformed points", None)
+        if (not t_points):
+            msg = "\"MPI Abort\" called during initialization "
+            extra_msg = " Transformed points with mapping \"True\" are " + \
+                        "not initialized. Please check your \"config file\"."
+            self.log_msg(msg    , 
+                         "error",
+                         extra_msg)
+	    self._comm_w.Abort(1)
+        # Transformed background.
+        self._t_background = [] 
+        # Transformed polygons.
+        self._t_foregrounds = []
+        for i, polygon in enumerate(t_points):
+            # Temporary transformed points.
+            t_t_points = []
+            n_coordinates = len(polygon)
+            #TODO: modify to do 3D!!
+            for j in xrange(0, n_coordinates, 3):
+                t_t_points.append([polygon[j], polygon[j + 1]])
+                j += 2
+            if (i == 0):
+                self._t_background = t_t_points
+            else:
+                self._t_foregrounds.append(t_t_points)
         # Initializing exchanged structures.
         self.init_e_structures()
     # --------------------------------------------------------------------------
@@ -292,15 +291,11 @@ class Laplacian(BaseClass2D.BaseClass2D):
 
         edges_or_nodes = []
         just_one_neighbour = False
-        mapping = self._mapping
         proc_grid = self._proc_g
         dimension = self._dim
 
-        if (mapping):
-            # Current transformation matrix's dictionary.
-            c_t_dict = self.get_trans(proc_grid)
-        else:
-            c_t_dict = None
+        # Current transformation matrix's dictionary.
+        c_t_dict = self.get_trans(proc_grid)
         if (codim is None):
             for i in xrange(0, len(centers)):
                 # Evaluating boundary conditions for edges.
@@ -327,8 +322,7 @@ class Laplacian(BaseClass2D.BaseClass2D):
         boundary_values = ExactSolution2D.ExactSolution2D.solution(x_s     , 
                                                    		   y_s     ,
                                                                    z_s     ,
-                                                                   c_t_dict,
-                                                                   mapping)
+                                                                   c_t_dict)
 
         msg = "Evaluated boundary conditions"
         if just_one_neighbour: 
@@ -1874,7 +1868,6 @@ class Laplacian(BaseClass2D.BaseClass2D):
         comm_l = self._comm
         time_rest_prol = 0
         dimension = self._dim
-        mapping = self._mapping
         proc_grid = self._proc_g
         # Current transformation matrix adjoint's dictionary.
         c_t_adj_dict = self.get_trans_adj(proc_grid)
@@ -2167,13 +2160,9 @@ class Laplacian(BaseClass2D.BaseClass2D):
 
         grid = self._proc_g
         is_background = True
-        mapping = self._mapping
         dimension = self._dim
-        if (mapping):
-            # Current transformation matrix's dictionary.
-            c_t_dict = self.get_trans(grid)
-        else:
-            c_t_dict = numpy.array(None)
+        # Current transformation matrix's dictionary.
+        c_t_dict = self.get_trans(grid)
         if grid:
             is_background = False
             numpy_row_indices = numpy.array(row_indices)
@@ -2194,9 +2183,7 @@ class Laplacian(BaseClass2D.BaseClass2D):
                                                                  centers[i][2] if\
                                                                  (dimension == 3)\
                                                                  else None         ,
-                                                                 mapping = c_t_dict,
-                                                                 #use_mapping = False)
-                                                                 use_mapping = mapping)
+                                                                 mapping = c_t_dict)
                 e_sols.append(e_sol)
 
         for i in range(0, n_rows):
