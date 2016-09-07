@@ -46,7 +46,7 @@ if len(files_list) == 0:
 try:
     n_grids = config.getint("PABLO", 
                             "NumberOfGrids")
-
+    # Each grid will be anchored on (0, 0, 0).
     anchors = []
     anchor = [0, 0, 0]
     for i in xrange(0, n_grids):
@@ -439,7 +439,6 @@ def compute(comm_dictionary     ,
                                  #str((norm_inf, norm_L2)))
     print(msg) 
     interpolate_sol = laplacian.reset_partially_solution()
-    #interpolate_sol = laplacian.interpolate_solution()
     p_centers = [utilities.apply_persp_trans(dimension,
                                              center   , 
                                              t_coeffs , 
@@ -489,6 +488,10 @@ def main():
                                  "%d" % comm_l_r                     ,
                                  "\".")            
     what_log = "debug"
+    # If \"Log\" option in file \"PABLO.ini\" is \"False\" then the \"what_log\" 
+    # flag will be \"critical\", to log only messages with importance equal or 
+    # greater than \"critical\". But, usually in the context of this project, 
+    # debug flags are just "info\" and \"error\". 
     if (not to_log):
         what_log = "critical"
     logger = utilities.Logger(__name__, 

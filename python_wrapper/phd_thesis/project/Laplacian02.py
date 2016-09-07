@@ -1355,7 +1355,7 @@ class Laplacian(BaseClass2D.BaseClass2D):
                                       up_id_octree)
         # Resetted solution.
         res_sol = self.init_array("resetted partially solution",
-                                    False)
+                                  petsc_size = False)
 
         for i in ids_octree_contained:
             sol_index = self.mask_octant(i)
