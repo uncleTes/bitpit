@@ -233,7 +233,7 @@ cdef class Py_My_Pablo_Uniform(Py_Para_Tree):
         # Number of nodes.
         cdef size_t n_nodes = self.thisptr.getNumNodes()
         # Number of ghost nodes.
-        cdef size_t n_g_nodes = (self.thisptr.getGhostNodes()).size()
+        #cdef size_t n_g_nodes = (self.thisptr.getGhostNodes()).size()
         cdef int index
         cdef darray3 coordinates
         py_coordinates = [0.0] * 3
@@ -254,17 +254,18 @@ cdef class Py_My_Pablo_Uniform(Py_Para_Tree):
                                                     log_file)
             g_nodes.append(to_append)
         
-        for index in xrange(0, n_g_nodes):
-            coordinates = self.der_thisptr._getGhostNodeCoordinates(index)
-            for i in xrange(0, dimension):
-                py_coordinates[i] = coordinates[i]
-            
-            to_append = utilities.apply_persp_trans(dimension     ,
-                                                    py_coordinates, 
-                                                    p_t_coeffs    , 
-                                                    logger        , 
-                                                    log_file)
-            g_g_nodes.append(to_append)
+#        for index in xrange(0, n_g_nodes):
+#            coordinates = self.der_thisptr._getGhostNodeCoordinates(index)
+#            for i in xrange(0, dimension):
+#                py_coordinates[i] = coordinates[i]
+#            
+#            to_append = utilities.apply_persp_trans(dimension     ,
+#                                                    py_coordinates, 
+#                                                    p_t_coeffs    , 
+#                                                    logger        , 
+#                                                    log_file)
+#            g_g_nodes.append(to_append)
 
-        return (g_nodes, g_g_nodes)
+#        return (g_nodes, g_g_nodes)
+        return g_nodes
         

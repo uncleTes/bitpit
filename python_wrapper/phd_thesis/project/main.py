@@ -533,10 +533,14 @@ def main():
     n_octs = pablo.get_num_octants()
     n_nodes = pablo.get_num_nodes()
 
-    (geo_nodes, ghost_geo_nodes) = pablo.apply_persp_trans(dimension  ,
-                                                           trans_coeff, 
-                                                           logger     , 
-                                                           log_file)
+    #(geo_nodes, ghost_geo_nodes) = pablo.apply_persp_trans(dimension  ,
+    #                                                       trans_coeff, 
+    #                                                       logger     , 
+    #                                                       log_file)
+    geo_nodes = pablo.apply_persp_trans(dimension  ,
+                                        trans_coeff, 
+                                        logger     , 
+                                        log_file)
 
     vtk = my_class_vtk.Py_My_Class_VTK(data_to_save            , # Data
                                        pablo                   , # Octree
@@ -547,7 +551,8 @@ def main():
                                        n_nodes                 , # Nnodes
                                        (2**dimension) * n_octs)  # (Nnodes * 
                                                                  #  pow(2,dim))
-    vtk.apply_trans(geo_nodes, ghost_geo_nodes) 
+    #vtk.apply_trans(geo_nodes, ghost_geo_nodes) 
+    vtk.apply_trans(geo_nodes) 
     ## Add data to "vtk" object to be written later.
     vtk.add_data("evaluated", # Data
                  1          , # Data dim

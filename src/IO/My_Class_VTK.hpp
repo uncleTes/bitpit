@@ -19,7 +19,7 @@ public VTKUnstructuredGrid{
     D* data;
     G& grid;
     const u32vector2D& connectivity;
-    const u32vector2D& ghostConnectivity;
+    //const u32vector2D& ghostConnectivity;
     darr3vector geoNodes;
     darr3vector ghostGeoNodes;
 
@@ -35,8 +35,8 @@ public:
     VTKUnstructuredGrid(dir_,
                         name_),
     grid(grid_),
-    connectivity(grid_._getConnectivity()),
-    ghostConnectivity(grid_.getGhostConnectivity())
+    connectivity(grid_._getConnectivity())
+    //ghostConnectivity(grid_.getGhostConnectivity())
     {
         VTKFormat vtk_format;
 
@@ -64,16 +64,15 @@ public:
                 ghostGeoNodes[index] = grid._getGhostNodeCoordinates(index);
     }
 
-    void applyTransf(darr3vector& transGeoNodes,
-                     darr3vector& transGhostGeoNodes) {
+    void applyTransf(darr3vector& transGeoNodes) {
         size_t nNodes = grid._getNumNodes();
-        size_t nGhostNodes = grid._getGhostNodes().size();
+        //size_t nGhostNodes = grid._getGhostNodes().size();
 
         for (size_t index = 0; index < nNodes; ++index)
                 geoNodes[index] = transGeoNodes[index];
         
-        for (size_t index = 0; index < nGhostNodes; ++index)
-                ghostGeoNodes[index] = transGhostGeoNodes[index];
+        //for (size_t index = 0; index < nGhostNodes; ++index)
+        //        ghostGeoNodes[index] = transGhostGeoNodes[index];
     }
         
 
@@ -84,9 +83,9 @@ public:
         int index;
         string vtk_format;
         int nNodes = geoNodes.size();
-        int nGhostNodes = ghostGeoNodes.size();
+        //int nGhostNodes = ghostGeoNodes.size();
         int nElements = connectivity.size();
-        int nGhostElements = ghostConnectivity.size();
+        //int nGhostElements = ghostConnectivity.size();
         int nNodesPerElement = pow(2, dim);
 
         string indent("         ");
@@ -102,11 +101,11 @@ public:
                     genericIO::flushASCII(str, 3, geoNodes.at(index));
                     str << endl;
                 }
-                for (index = 0; index < nGhostNodes; ++index) {
-                    genericIO::flushASCII(str, indent);
-                    genericIO::flushASCII(str, 3, ghostGeoNodes.at(index));
-                    str << endl;
-                }
+                //for (index = 0; index < nGhostNodes; ++index) {
+                //    genericIO::flushASCII(str, indent);
+                //    genericIO::flushASCII(str, 3, ghostGeoNodes.at(index));
+                //    str << endl;
+                //}
             }
             else if (name == "connectivity") {
                 for (index = 0; index < nElements; ++index) {
@@ -116,16 +115,16 @@ public:
                                 connectivity.at(index));
                     str << endl;
                 }
-                for (index = 0; index < nGhostElements; ++index) {
-                    genericIO::flushASCII(str, indent);
-                    vector<uint32_t> gEleConnectivity = ghostConnectivity.at(index);
-                        for (int i = 0; i < nNodesPerElement; ++i)
-                            gEleConnectivity[i] += nNodes;
+                //for (index = 0; index < nGhostElements; ++index) {
+                //    genericIO::flushASCII(str, indent);
+                //    vector<uint32_t> gEleConnectivity = ghostConnectivity.at(index);
+                //        for (int i = 0; i < nNodesPerElement; ++i)
+                //            gEleConnectivity[i] += nNodes;
 
-                        genericIO::flushASCII(str, nNodesPerElement, gEleConnectivity);
+                //        genericIO::flushASCII(str, nNodesPerElement, gEleConnectivity);
 
-                        str << endl;
-                }
+                //        str << endl;
+                //}
             }
             else if (name == "types") {
                 int type(dim == 2 ? 8 : 11);
@@ -135,11 +134,11 @@ public:
                     genericIO::flushASCII(str, type);
                     str << endl;
                 }
-                for (index = 0; index < nGhostElements; ++index) {
-                    genericIO::flushASCII(str, indent);
-                    genericIO::flushASCII(str, type);
-                    str << endl;
-                }
+                //for (index = 0; index < nGhostElements; ++index) {
+                //    genericIO::flushASCII(str, indent);
+                //    genericIO::flushASCII(str, type);
+                //    str << endl;
+                //}
             }
             else if (name == "offsets") {
                 int off(0);
@@ -152,12 +151,12 @@ public:
                     genericIO::flushASCII(str, off);
                     str << endl;
                 }
-                for (index = 0; index < nGhostElements; ++index) {
-                    off += numberOfElements;
-                    genericIO::flushASCII(str, indent);
-                    genericIO::flushASCII(str, off);
-                    str << endl;
-                }
+                //for (index = 0; index < nGhostElements; ++index) {
+                //    off += numberOfElements;
+                //    genericIO::flushASCII(str, indent);
+                //    genericIO::flushASCII(str, off);
+                //    str << endl;
+                //}
             }
             else if (name == "exact") {
                 for (index = 0; index < nElements; ++index) {
@@ -178,28 +177,28 @@ public:
             if (name == "Points") {
                 for (index = 0; index < nNodes; ++index) {
                 }
-                for (index = 0; index < nGhostNodes; ++index) {
-                }
+                //for (index = 0; index < nGhostNodes; ++index) {
+                //}
 
             }
             else if (name == "connectivity") {
                 for (index = 0; index < nElements; ++index) {
                 }
-                for (index = 0; index < nGhostElements; ++index) {
-                }
+                //for (index = 0; index < nGhostElements; ++index) {
+                //}
 
             }
             else if (name == "types") {
                 for (index = 0; index < nElements; ++index) {
                 }
-                for (index = 0; index < nGhostElements; ++index) {
-                }
+                //for (index = 0; index < nGhostElements; ++index) {
+                //}
             }
             else if (name == "offset") {
                 for (index = 0; index < nElements; ++index) {
                 }
-                for (index = 0; index < nGhostElements; ++index) {
-                }
+                //for (index = 0; index < nGhostElements; ++index) {
+                //}
             }
         }
     }
